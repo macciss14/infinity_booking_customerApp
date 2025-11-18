@@ -31,7 +31,9 @@ class User {
 
   // Factory constructor to create a User instance from JSON data
   factory User.fromJson(Map<String, dynamic> json) {
-    // IMPORTANT: The key name 'phoneNumber' must match EXACTLY what the /users/profile endpoint returns
+    // IMPORTANT: The key name 'profileImage' must match EXACTLY what the /users/profile endpoint returns
+    // The proposal's CustomerProfile schema uses 'profileImage'
+    // Also handle potential variations like 'profilePictureUrl' or 'profile_image_url' as fallbacks
     return User(
       id:
           json['_id'] ??
@@ -52,7 +54,7 @@ class User {
       profilePictureUrl:
           json['profileImage'] ??
           json['profilePictureUrl'] ??
-          json['profile_image_url'], // Adjust key based on your API response - likely 'profileImage' from CustomerProfile
+          json['profile_image_url'], // CRITICAL: Check backend response for /users/profile. Likely 'profileImage' per CustomerProfile schema.
       preferredServices: (json['preferredServices'] as List<dynamic>?)
           ?.map((e) => e.toString())
           .toList(),
@@ -60,13 +62,13 @@ class User {
           json['isTwoFactorEnabled'] ??
           json['two_factor_enabled'] ??
           json['isTwoFactorEnabled'] ??
-          false, // Adjust key based on your API response - likely 'isTwoFactorEnabled' from CustomerProfile
+          false, // Adjust key based on your API response - likely 'isTwoFactorEnabled' per CustomerProfile schema
       registrationDate: DateTime.parse(
         json['registeredAt'] ??
             json['registrationDate'] ??
             json['registration_date'] ??
             DateTime.now().toIso8601String(),
-      ), // Adjust key based on your API response - likely 'registeredAt' from CustomerProfile
+      ), // Adjust key based on your API response - likely 'registeredAt' per CustomerProfile schema
     );
   }
 

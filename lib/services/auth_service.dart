@@ -312,9 +312,7 @@ class AuthService {
   static Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(_tokenKey);
-    print(
-      'AuthService.isLoggedIn: Token found in storage: ${token != null}',
-    ); // Debug print
+    // print('AuthService.isLoggedIn: Token found: ${token != null}'); // Debug print - remove if not needed
     return token != null &&
         token.isNotEmpty; // Check if token exists and is not empty
   }
@@ -323,9 +321,7 @@ class AuthService {
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(_tokenKey);
-    print(
-      'AuthService.getToken: Retrieved token from storage: $token',
-    ); // Debug print
+    // print('AuthService.getToken: Retrieved token: $token'); // Debug print - remove if not needed
     return token; // Return the token string or null if not found
   }
 
@@ -337,18 +333,14 @@ class AuthService {
     if (userDataString != null) {
       try {
         final userData = json.decode(userDataString);
-        print(
-          'AuthService.getCurrentUser: Retrieved user data from storage.',
-        ); // Debug print
+        // print('AuthService.getCurrentUser: Retrieved data from storage.'); // Debug print - remove if not needed
         return User.fromJson(userData);
       } catch (e) {
         print('Error parsing stored user  $e');
         return null;
       }
     }
-    print(
-      'AuthService.getCurrentUser: No user data found in storage.',
-    ); // Debug print
+    // print('AuthService.getCurrentUser: No user data found in storage.'); // Debug print - remove if not needed
     return null;
   }
 
