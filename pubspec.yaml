@@ -1,0 +1,35 @@
+# pubspec.yaml
+
+name: mobile_app
+description: A new Flutter project.
+publish_to: 'none'
+
+environment:
+  sdk: '^3.9.0' # Ensure this matches the constraint format
+  flutter: ">=3.3.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.1.0
+  shared_preferences: ^2.2.2
+  provider: ^6.1.1
+  image_picker: ^1.0.4
+  url_launcher: ^6.2.1
+  equatable: ^2.0.5 # <-- ADD THIS LINE
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
+  # assets:
+  #   - assets/
+  # fonts:
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic
