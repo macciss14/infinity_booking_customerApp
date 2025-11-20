@@ -1,11 +1,9 @@
 // lib/utils/constants.dart
 
-import 'package:flutter/material.dart'; // Import Material library for Color
+import 'package:flutter/material.dart';
 
 class Constants {
-  // API Base URL
-  static const String apiBaseUrl =
-      'https://infinity-booking-backend1.onrender.com/infinity-booking';
+  static const String apiBaseUrl = 'https://infinity-booking-backend1.onrender.com/infinity-booking';
 
   // Colors
   static const Color primaryColor = Color(0xFF1E90FF); // DodgerBlue
@@ -17,7 +15,9 @@ class Constants {
 // Optional: Define common API endpoints here for consistency
 class Endpoints {
   static const String authLogin = '/auth/login';
-  static const String authRegister = '/auth/register';
+  static const String authRegisterCustomer = '/auth/register/customer';
   static const String userProfile = '/users/profile';
+  static const String userChangePassword = '/users/change-password';
+  static const String userUploadProfilePhoto = '/users/profile-photo/upload'; // Updated to match backend expectation 'photo'
   // Add other endpoints as needed
 }

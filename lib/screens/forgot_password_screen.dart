@@ -1,7 +1,6 @@
 // lib/screens/forgot_password_screen.dart
 
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart'; // Import the AuthService
 
 class ForgotPasswordScreen extends StatefulWidget {
   @override
@@ -28,46 +27,37 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                'Enter your email to receive a password reset link.',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              SizedBox(height: 30),
-              TextFormField(
-                controller: _emailController,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  prefixIcon: Icon(Icons.email),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your email';
-                  }
-                  // Add email format validation if needed
-                  return null;
-                },
+                'Forgot Password?',
+                style: Theme.of(context).textTheme.headlineMedium,
               ),
               SizedBox(height: 20),
-              _isLoading
-                  ? CircularProgressIndicator()
-                  : ElevatedButton(
-                      onPressed: _sendPasswordResetLink,
-                      style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 80,
-                          vertical: 15,
-                        ),
-                        backgroundColor: Theme.of(context).primaryColor,
-                      ),
-                      child: Text(
-                        'Send Reset Link',
-                        style: TextStyle(fontSize: 18, color: Colors.white),
-                      ),
-                    ),
+              Text(
+                'This feature is coming soon. Please try again later.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.grey[600]),
+              ),
+              SizedBox(height: 30),
+              // Disabled button or a button that shows a message
+              ElevatedButton(
+                onPressed: () {
+                  // Show a snackbar or dialog indicating the feature is not ready
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('This feature is coming soon!')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  padding: EdgeInsets.symmetric(horizontal: 80, vertical: 15),
+                  backgroundColor: Theme.of(context).primaryColor,
+                ),
+                child: Text(
+                  'Send Reset Link',
+                  style: TextStyle(fontSize: 18, color: Colors.white),
+                ),
+              ),
               SizedBox(height: 15),
               TextButton(
                 onPressed: () {
-                  // Go back to Login Screen
-                  Navigator.pop(context);
+                  Navigator.pop(context); // Go back to previous screen (e.g., Login)
                 },
                 child: Text('Back to Login'),
               ),
@@ -76,45 +66,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _sendPasswordResetLink() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
-
-      // Call the AuthService.sendPasswordResetLink method
-      final result = await AuthService.sendPasswordResetLink(
-        _emailController.text,
-      );
-
-      setState(() {
-        _isLoading = false;
-      });
-
-      if (result['success']) {
-        // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              result['message'] ?? 'Password reset link sent successfully!',
-            ),
-          ),
-        );
-        // Navigate back to Login Screen
-        Navigator.pop(context);
-      } else {
-        // Show error message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              result['message'] ?? 'Failed to send password reset link.',
-            ),
-          ),
-        );
-      }
-    }
   }
 
   @override

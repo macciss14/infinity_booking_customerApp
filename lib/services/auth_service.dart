@@ -312,17 +312,13 @@ class AuthService {
   static Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(_tokenKey);
-    // print('AuthService.isLoggedIn: Token found: ${token != null}'); // Debug print - remove if not needed
-    return token != null &&
-        token.isNotEmpty; // Check if token exists and is not empty
+    return token != null && token.isNotEmpty;
   }
 
   // Get the stored auth token
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString(_tokenKey);
-    // print('AuthService.getToken: Retrieved token: $token'); // Debug print - remove if not needed
-    return token; // Return the token string or null if not found
+    return prefs.getString(_tokenKey);
   }
 
   // Get the stored user data (if saved locally)
@@ -333,24 +329,19 @@ class AuthService {
     if (userDataString != null) {
       try {
         final userData = json.decode(userDataString);
-        // print('AuthService.getCurrentUser: Retrieved data from storage.'); // Debug print - remove if not needed
         return User.fromJson(userData);
       } catch (e) {
         print('Error parsing stored user  $e');
         return null;
       }
     }
-    // print('AuthService.getCurrentUser: No user data found in storage.'); // Debug print - remove if not needed
     return null;
   }
 
   // Logout: Remove the stored token and user data
   static Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_tokenKey); // Remove the token
-    await prefs.remove(_userDataKey); // Remove the user data
-    print(
-      'AuthService.logout: Token and user data removed from storage.',
-    ); // Debug print
+    await prefs.remove(_tokenKey);
+    await prefs.remove(_userDataKey);
   }
 }

@@ -6,8 +6,9 @@ class BookingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('My Bookings')),
-      body: Center(child: Text('Your Bookings Screen')),
+      body: Center(
+        child: Text('Bookings Screen Placeholder'),
+      ),
     );
   }
 }

@@ -9,53 +9,48 @@ class BeautySalonScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text('Beauty & Salon'),
-        backgroundColor: Constants.primaryColor,
+        backgroundColor: Constants.forestGreen,
+        foregroundColor: Colors.white,
       ),
-      body: SingleChildScrollView(
-        // Make the content scrollable
+      body: SingleChildScrollView( // Make content scrollable
         child: Padding(
           padding: EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
               Text(
-                'Beauty & Salon',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                'Pamper Yourself with Our Beauty Experts',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
-              SizedBox(height: 8),
+              SizedBox(height: 16),
               Text(
-                'Pamper yourself with our top-rated beauty services.',
+                'Discover top-rated beauty and salon services near you.',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
-              SizedBox(height: 20),
-              // Subcategory Cards
-              _buildSubcategoryCard(
-                'Haircuts',
-                'Men\'s, women\'s, kids\' haircuts and styling.',
-                Icons.cut,
-              ),
+              SizedBox(height: 32),
+              // Subcategory Cards for Beauty & Salon
+              _buildSubCategoryCard('Haircuts', Icons.cut, 'Get a fresh haircut from our skilled stylists.'),
               SizedBox(height: 16),
-              _buildSubcategoryCard(
-                'Manicures',
-                'Nail care, polish, and designs.',
-                Icons.nail,
-              ),
+              _buildSubCategoryCard('Manicures & Pedicures', Icons.spa, 'Beautiful, long-lasting manicures and pedicures.'), // FIXED: Changed icon to Icons.spa
               SizedBox(height: 16),
-              _buildSubcategoryCard(
-                'Facials',
-                'Skin care treatments and rejuvenation.',
-                Icons.face,
-              ),
+              _buildSubCategoryCard('Facials', Icons.face, 'Rejuvenate your skin with our expert facial treatments.'),
               SizedBox(height: 16),
-              _buildSubcategoryCard(
-                'Personal Care',
-                'Waxing, threading, and other personal grooming.',
-                Icons.person,
+              _buildSubCategoryCard('Personal Care', Icons.person, 'All other personal care services including waxing, makeup, etc.'),
+              SizedBox(height: 32),
+              // Call to Action
+              ElevatedButton(
+                onPressed: () {
+                  // Navigate to a "Book Now" screen or show a form
+                  // For now, just show a snackbar
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Book a Beauty Service')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Constants.primaryColor,
+                ),
+                child: Text('Book a Beauty Service', style: TextStyle(color: Colors.white)),
               ),
-              SizedBox(height: 40), // Add some space at the bottom
             ],
           ),
         ),
@@ -64,13 +59,8 @@ class BeautySalonScreen extends StatelessWidget {
   }
 
   // Helper Widget for Subcategory Cards
-  Widget _buildSubcategoryCard(
-    String title,
-    String description,
-    IconData icon,
-  ) {
+  Widget _buildSubCategoryCard(String title, IconData icon, String description) {
     return Container(
-      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -83,31 +73,26 @@ class BeautySalonScreen extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Icon(icon, size: 40, color: Constants.primaryColor),
-          SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: Constants.forestGreen,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  description,
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-              ],
+      child: Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 40, color: Constants.primaryColor),
+            SizedBox(height: 10),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18, color: Constants.forestGreen),
             ),
-          ),
-        ],
+            SizedBox(height: 6),
+            Text(
+              description,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            ),
+          ],
+        ),
       ),
     );
   }

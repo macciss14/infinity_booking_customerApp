@@ -3,7 +3,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../utils/constants.dart'; // Import your constants.dart
-import 'auth_service.dart'; // Import AuthService
+import 'auth_service.dart'; // Import AuthService to get the token
 
 class ApiService {
   // Base URL is defined in constants.dart
@@ -68,11 +68,25 @@ class ApiService {
   }
 
   // Specific method for user registration - Updated endpoint for customer
+  // Updated to send 'phonenumber' as the key
   static Future<http.Response> registerUser(
     Map<String, dynamic> userData,
   ) async {
     // Endpoint: POST /infinity-booking/auth/register/customer
-    return makeRequest('/auth/register/customer', 'POST', body: userData);
+    // Ensure the key for phone number is 'phonenumber' as expected by the backend schema
+    final userDataToSend = {
+      ...userData, // Spread the original data
+      'phonenumber':
+          userData['phonenumber'] ??
+          userData['phone'] ??
+          userData['phoneNumber'], // Ensure 'phonenumber' key is used
+    };
+    // Remove the old keys if they existed under different names to avoid sending duplicates
+    userDataToSend.removeWhere(
+      (key, value) => key == 'phone' || key == 'phoneNumber',
+    );
+
+    return makeRequest('/auth/register/customer', 'POST', body: userDataToSend);
   }
 
   // Specific method for user login
@@ -108,17 +122,14 @@ class ApiService {
       throw Exception('No token found. User might not be logged in.');
     }
     final headers = {'Authorization': 'Bearer $token'};
-
     // Extract the user's ID from the profileData map
     final userId = profileData['id']; // Adjust key based on your data structure
     if (userId == null) {
       throw Exception('User ID not found in profile data sent to API.');
     }
-
     // Remove the 'id' field from the data payload as it's part of the URL
     final updatePayload = Map<String, dynamic>.from(profileData);
     updatePayload.remove('id');
-
     // Construct the endpoint URL using the extracted ID
     final endpoint = '/users/$userId';
     print(
@@ -127,7 +138,6 @@ class ApiService {
     print(
       'ApiService.updateUserProfile: Sending payload: $updatePayload',
     ); // Debug print
-
     return makeRequest(
       endpoint,
       'PATCH',
@@ -160,6 +170,7 @@ class ApiService {
     String fileName,
   ) async {
     // Endpoint: PATCH /infinity-booking/users/profile-photo/upload
+    // CRITICAL: The backend expects the file field name to be 'photo' (as per upload.single("photo"))
     final token = await AuthService.getToken();
     if (token == null) {
       throw Exception('No token found. User might not be logged in.');
@@ -167,7 +178,7 @@ class ApiService {
 
     // Create a multipart request for file upload
     final uri = Uri.parse('$baseUrl/users/profile-photo/upload');
-    final request = http.MultipartRequest('PATCH', uri); // Use PATCH method
+    final request = http.MultipartRequest('PATCH', uri);
 
     // Add the authorization header
     request.headers['Authorization'] = 'Bearer $token';

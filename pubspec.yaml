@@ -1,11 +1,10 @@
 # pubspec.yaml
-
 name: mobile_app
-description: A new Flutter project.
+description: A new Flutter project for the Infinity-Booking customer app.
 publish_to: 'none'
 
 environment:
-  sdk: '^3.9.0' # Ensure this matches the constraint format
+  sdk: '^3.9.0'
   flutter: ">=3.3.0"
 
 dependencies:
@@ -13,10 +12,8 @@ dependencies:
     sdk: flutter
   http: ^1.1.0
   shared_preferences: ^2.2.2
-  provider: ^6.1.1
-  image_picker: ^1.0.4
-  url_launcher: ^6.2.1
-  equatable: ^2.0.5 # <-- ADD THIS LINE
+  image_picker: ^1.0.4 # For profile photo upload
+  url_launcher: ^6.2.1 # For opening external links (e.g., contact)
 
 dev_dependencies:
   flutter_test:
@@ -26,10 +23,4 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   # assets:
-  #   - assets/
-  # fonts:
-  #   - family: Schyler
-  #     fonts:
-  #       - asset: fonts/Schyler-Regular.ttf
-  #       - asset: fonts/Schyler-Italic.ttf
-  #         style: italic
+  #   - assets/default_avatar.png # Add default avatar asset if needed later

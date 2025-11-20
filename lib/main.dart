@@ -36,9 +36,7 @@ class MyApp extends StatelessWidget {
           } else {
             // Navigate based on login status
             bool isLoggedIn = snapshot.data ?? false;
-            return isLoggedIn
-                ? HomeScreen()
-                : LandingPage(); // Show Home if logged in, LandingPage otherwise
+            return isLoggedIn ? HomeScreen() : LandingPage(); // Show Home if logged in, LandingPage otherwise
           }
         },
       ),
