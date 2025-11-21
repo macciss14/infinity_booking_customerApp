@@ -1,87 +1,86 @@
-// lib/services/api_service.dart
-
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../utils/constants.dart'; // Import your constants.dart
-import 'auth_service.dart'; // Import AuthService to get the token
+import '../utils/constants.dart';
+import 'auth_service.dart';
 
 class ApiService {
-  // Base URL is defined in constants.dart
-  static const String baseUrl = Constants
-      .apiBaseUrl; // e.g., 'https://infinity-booking-backend1.onrender.com/infinity-booking'
+  static const String baseUrl = Constants.apiBaseUrl;
 
-  // Generic method to make API calls
   static Future<http.Response> makeRequest(
     String endpoint,
     String method, {
     Map<String, String>? headers,
     dynamic body,
   }) async {
-    final url = Uri.parse('$baseUrl$endpoint'); // Combine base URL and endpoint
-    print('Making API call to: $url'); // Debug print
+    try {
+      final url = Uri.parse('$baseUrl$endpoint');
+      print('🌐 Making API call to: $url');
 
-    // Prepare headers
-    final requestHeaders = <String, String>{
-      'Content-Type': 'application/json',
-      ...?headers, // Add any specific headers passed
-    };
+      final requestHeaders = <String, String>{
+        'Content-Type': 'application/json',
+        ...?headers,
+      };
 
-    http.Response response;
+      http.Response response;
 
-    switch (method) {
-      case 'GET':
-        response = await http.get(url, headers: requestHeaders);
-        break;
-      case 'POST':
-        response = await http.post(
-          url,
-          headers: requestHeaders,
-          body: jsonEncode(body),
-        );
-        break;
-      case 'PUT':
-        response = await http.put(
-          url,
-          headers: requestHeaders,
-          body: jsonEncode(body),
-        );
-        break;
-      case 'PATCH':
-        response = await http.patch(
-          url,
-          headers: requestHeaders,
-          body: jsonEncode(body),
-        );
-        break;
-      case 'DELETE':
-        response = await http.delete(url, headers: requestHeaders);
-        break;
-      default:
-        throw Exception('HTTP method $method not supported');
+      switch (method.toUpperCase()) {
+        case 'GET':
+          response = await http.get(url, headers: requestHeaders);
+          break;
+        case 'POST':
+          response = await http.post(
+            url,
+            headers: requestHeaders,
+            body: body != null ? jsonEncode(body) : null,
+          );
+          break;
+        case 'PUT':
+          response = await http.put(
+            url,
+            headers: requestHeaders,
+            body: body != null ? jsonEncode(body) : null,
+          );
+          break;
+        case 'PATCH':
+          response = await http.patch(
+            url,
+            headers: requestHeaders,
+            body: body != null ? jsonEncode(body) : null,
+          );
+          break;
+        case 'DELETE':
+          response = await http.delete(url, headers: requestHeaders);
+          break;
+        default:
+          throw Exception('HTTP method $method not supported');
+      }
+
+      print('📡 API Call: $method $url');
+      print('📊 Response Status: ${response.statusCode}');
+
+      if (response.statusCode >= 400) {
+        print('❌ Error Response Body: ${response.body}');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ API Request Error: $e');
+      rethrow;
     }
-
-    print('API Call: $method $url');
-    print('Response Status: ${response.statusCode}');
-    print('Response Body: ${response.body}');
-
-    return response;
   }
 
-  // Specific method for user registration - Updated endpoint for customer
-  // Updated to send 'phonenumber' as the key
+  // Registration method
   static Future<http.Response> registerUser(
     Map<String, dynamic> userData,
   ) async {
-    // Endpoint: POST /infinity-booking/auth/register/customer
-    // Ensure the key for phone number is 'phonenumber' as expected by the backend schema
-    final userDataToSend = {
-      ...userData, // Spread the original data
-      'phonenumber':
-          userData['phonenumber'] ??
-          userData['phone'] ??
-          userData['phoneNumber'], // Ensure 'phonenumber' key is used
-    };
-    // Remove the old keys if they existed under different names to avoid sending duplicates
+    final userDataToSend = Map<String, dynamic>.from(userData);
+
+    userDataToSend['phonenumber'] =
+        userDataToSend['phonenumber'] ??
+        userDataToSend['phone'] ??
+        userDataToSend['phoneNumber'] ??
+        '';
+
     userDataToSend.removeWhere(
       (key, value) => key == 'phone' || key == 'phoneNumber',
     );
@@ -89,72 +88,141 @@ class ApiService {
     return makeRequest('/auth/register/customer', 'POST', body: userDataToSend);
   }
 
-  // Specific method for user login
+  // Login method
   static Future<http.Response> loginUser(
     Map<String, dynamic> credentials,
   ) async {
-    // Endpoint: POST /infinity-booking/auth/login
     return makeRequest('/auth/login', 'POST', body: credentials);
   }
 
-  // Specific method to get user profile - NEW
+  // GET USER PROFILE
   static Future<http.Response> getUserProfile() async {
-    // Endpoint: GET /infinity-booking/users/profile
-    // This call requires an Authorization header with the Bearer token
-    final token = await AuthService.getToken(); // Get the stored token
+    final token = await AuthService.getToken();
     if (token == null) {
-      throw Exception('No token found. User might not be logged in.');
+      throw Exception('No authentication token found');
     }
-    final headers = {
-      'Authorization': 'Bearer $token', // Include the token in the header
-    };
+
+    final headers = {'Authorization': 'Bearer $token'};
     return makeRequest('/users/profile', 'GET', headers: headers);
   }
 
-  // Specific method to update user profile - NEW
+  // UPDATE USER PROFILE - CORRECT ENDPOINT: PATCH /users/{id}
   static Future<http.Response> updateUserProfile(
     Map<String, dynamic> profileData,
   ) async {
-    // Endpoint: PATCH /infinity-booking/users/{id}
-    // Assuming the endpoint is /infinity-booking/users/{id} for self-update
     final token = await AuthService.getToken();
     if (token == null) {
-      throw Exception('No token found. User might not be logged in.');
+      throw Exception('No authentication token found');
     }
+
     final headers = {'Authorization': 'Bearer $token'};
-    // Extract the user's ID from the profileData map
-    final userId = profileData['id']; // Adjust key based on your data structure
-    if (userId == null) {
-      throw Exception('User ID not found in profile data sent to API.');
+
+    // Extract user ID for the endpoint
+    final userId = profileData['id'];
+    if (userId == null || userId.isEmpty) {
+      throw Exception('User ID is required for profile update');
     }
-    // Remove the 'id' field from the data payload as it's part of the URL
+
+    // Remove ID from payload - it goes in URL
     final updatePayload = Map<String, dynamic>.from(profileData);
     updatePayload.remove('id');
-    // Construct the endpoint URL using the extracted ID
-    final endpoint = '/users/$userId';
-    print(
-      'ApiService.updateUserProfile: Constructed endpoint: $endpoint',
-    ); // Debug print
-    print(
-      'ApiService.updateUserProfile: Sending payload: $updatePayload',
-    ); // Debug print
+
+    print('📝 Updating user profile for ID: $userId');
+    print('📝 Using endpoint: PATCH /users/$userId');
+
     return makeRequest(
-      endpoint,
+      '/users/$userId',
       'PATCH',
       headers: headers,
       body: updatePayload,
     );
   }
 
-  // Specific method to change password - NEW
+  // UPLOAD PROFILE PHOTO - CORRECT ENDPOINT: PATCH /users/profile-photo/upload
+  static Future<http.Response> uploadProfilePhoto(
+    List<int> imageBytes,
+    String fileName,
+  ) async {
+    final token = await AuthService.getToken();
+    if (token == null) {
+      throw Exception('No authentication token found');
+    }
+
+    final uri = Uri.parse('$baseUrl/users/profile-photo/upload');
+    final request = http.MultipartRequest('PATCH', uri);
+    request.headers['Authorization'] = 'Bearer $token';
+
+    final multipartFile = http.MultipartFile.fromBytes(
+      'photo',
+      imageBytes,
+      filename: fileName,
+    );
+
+    request.files.add(multipartFile);
+
+    print('📸 Uploading profile photo to: PATCH /users/profile-photo/upload');
+    print('📸 File: $fileName, Size: ${imageBytes.length} bytes');
+
+    try {
+      final response = await request.send();
+      final resp = await http.Response.fromStream(response);
+
+      print('📸 Upload Response Status: ${resp.statusCode}');
+
+      if (resp.statusCode >= 400) {
+        print('❌ Upload Error: ${resp.body}');
+      }
+
+      return resp;
+    } catch (e) {
+      print('❌ Upload Request Failed: $e');
+      rethrow;
+    }
+  }
+
+  // ALTERNATIVE UPLOAD PROFILE PHOTO - PATCH /users/{id}/upload-photo
+  static Future<http.Response> uploadProfilePhotoWithId(
+    String userId,
+    List<int> imageBytes,
+    String fileName,
+  ) async {
+    final token = await AuthService.getToken();
+    if (token == null) {
+      throw Exception('No authentication token found');
+    }
+
+    final uri = Uri.parse('$baseUrl/users/$userId/upload-photo');
+    final request = http.MultipartRequest('PATCH', uri);
+    request.headers['Authorization'] = 'Bearer $token';
+
+    final multipartFile = http.MultipartFile.fromBytes(
+      'photo',
+      imageBytes,
+      filename: fileName,
+    );
+
+    request.files.add(multipartFile);
+
+    print('📸 Uploading profile photo to: PATCH /users/$userId/upload-photo');
+
+    try {
+      final response = await request.send();
+      return await http.Response.fromStream(response);
+    } catch (e) {
+      print('❌ Upload with ID Failed: $e');
+      rethrow;
+    }
+  }
+
+  // Change password
   static Future<http.Response> changePassword(
     Map<String, dynamic> passwordData,
   ) async {
-    // Endpoint: PATCH /infinity-booking/users/change-password
     final token = await AuthService.getToken();
     if (token == null) {
-      throw Exception('No token found. User might not be logged in.');
+      throw Exception('No authentication token found');
     }
+
     final headers = {'Authorization': 'Bearer $token'};
     return makeRequest(
       '/users/change-password',
@@ -164,53 +232,35 @@ class ApiService {
     );
   }
 
-  // Specific method to upload profile photo - NEW (Web-friendly, Multipart)
-  static Future<http.Response> uploadProfilePhoto(
-    List<int> imageBytes,
-    String fileName,
-  ) async {
-    // Endpoint: PATCH /infinity-booking/users/profile-photo/upload
-    // CRITICAL: The backend expects the file field name to be 'photo' (as per upload.single("photo"))
-    final token = await AuthService.getToken();
-    if (token == null) {
-      throw Exception('No token found. User might not be logged in.');
-    }
-
-    // Create a multipart request for file upload
-    final uri = Uri.parse('$baseUrl/users/profile-photo/upload');
-    final request = http.MultipartRequest('PATCH', uri);
-
-    // Add the authorization header
-    request.headers['Authorization'] = 'Bearer $token';
-
-    // Add the file to the request using MultipartFile.fromBytes
-    // The field name 'photo' must match exactly what the backend expects (as per upload.single("photo"))
-    final multipartFile = http.MultipartFile.fromBytes(
-      'photo', // <-- CRITICAL: Field name must match backend expectation 'photo'
-      imageBytes,
-      filename: fileName,
-    );
-
-    request.files.add(multipartFile);
-
-    print(
-      'ApiService.uploadProfilePhoto: Sending multipart request to: $uri',
-    ); // Debug print
-    print(
-      'ApiService.uploadProfilePhoto: Field name: photo, Filename: $fileName',
-    ); // Debug print
-
-    // Send the multipart request
-    final response = await request.send();
-
-    // Convert the streamed response to a standard http.Response
-    final resp = await http.Response.fromStream(response);
-
-    print('Upload Profile Photo Response Status: ${resp.statusCode}');
-    print('Upload Profile Photo Response Body: ${resp.body}');
-
-    return resp;
+  // Add other API methods as needed
+  static Future<http.Response> getServices() async {
+    return makeRequest('/services', 'GET');
   }
 
-  // Add other API methods here as needed (e.g., getServices, createBooking, etc.)
+  static Future<http.Response> createBooking(
+    Map<String, dynamic> bookingData,
+  ) async {
+    final token = await AuthService.getToken();
+    if (token == null) {
+      throw Exception('No authentication token found');
+    }
+
+    final headers = {'Authorization': 'Bearer $token'};
+    return makeRequest(
+      '/bookings',
+      'POST',
+      headers: headers,
+      body: bookingData,
+    );
+  }
+
+  static Future<http.Response> getUserBookings() async {
+    final token = await AuthService.getToken();
+    if (token == null) {
+      throw Exception('No authentication token found');
+    }
+
+    final headers = {'Authorization': 'Bearer $token'};
+    return makeRequest('/bookings/user', 'GET', headers: headers);
+  }
 }
