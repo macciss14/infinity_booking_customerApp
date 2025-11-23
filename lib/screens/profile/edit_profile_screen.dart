@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:mobile_app/services/auth_service.dart';
 import 'package:mobile_app/utils/constants.dart';
 import '../../services/image_picker_service.dart';
@@ -27,6 +29,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _isUploading = false;
 
   User? _currentUser;
+  Uint8List? _selectedImageBytes;
 
   @override
   void initState() {
@@ -107,41 +110,80 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             print('✅ Address changed: "${_addressController.text}"');
           }
 
-          // Only proceed if there are changes
-          if (updateData.isNotEmpty) {
-            print('🚀 Sending profile update with data: $updateData');
-            print('🔑 User ID: ${_currentUser!.id}');
+          // Upload profile photo if a new one was selected
+          if (_selectedImageBytes != null) {
+            print('📸 Uploading new profile photo...');
+            final fileName =
+                'profile_${_currentUser!.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
-            final result = await AuthService.updateProfile(updateData);
+            final uploadResult = await AuthService.uploadProfilePhoto(
+              _selectedImageBytes!,
+              fileName,
+            );
 
-            if (result['success']) {
-              print('✅ Profile update successful');
-
-              // Update the current user object with the new data
-              if (result['user'] != null) {
+            if (uploadResult['success']) {
+              print('✅ Profile photo uploaded successfully');
+              if (uploadResult['user'] != null) {
                 setState(() {
-                  _currentUser = result['user'];
+                  _currentUser = uploadResult['user'];
                 });
               }
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Profile updated successfully!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-              Navigator.pop(context);
             } else {
-              print('❌ Profile update failed: ${result['message']}');
+              print(
+                  '❌ Profile photo upload failed: ${uploadResult['message']}');
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    result['message'] ?? 'Failed to update profile.',
-                  ),
-                  backgroundColor: Colors.red,
+                      'Profile updated but photo upload failed: ${uploadResult['message']}'),
+                  backgroundColor: Colors.orange,
                 ),
               );
             }
+          }
+
+          // Only proceed with profile update if there are changes
+          if (updateData.isNotEmpty || _selectedImageBytes != null) {
+            if (updateData.isNotEmpty) {
+              print('🚀 Sending profile update with data: $updateData');
+              print('🔑 User ID: ${_currentUser!.id}');
+
+              final result = await AuthService.updateProfile(updateData);
+
+              if (result['success']) {
+                print('✅ Profile update successful');
+
+                // Update the current user object with the new data
+                if (result['user'] != null) {
+                  setState(() {
+                    _currentUser = result['user'];
+                  });
+                }
+              } else {
+                print('❌ Profile update failed: ${result['message']}');
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      result['message'] ?? 'Failed to update profile.',
+                    ),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+            }
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content:
+                    Text(_selectedImageBytes != null && updateData.isNotEmpty
+                        ? 'Profile and photo updated successfully!'
+                        : _selectedImageBytes != null
+                            ? 'Profile photo updated successfully!'
+                            : 'Profile updated successfully!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+            Navigator.pop(context);
           } else {
             print('ℹ️ No changes detected to save');
             ScaffoldMessenger.of(context).showSnackBar(
@@ -163,6 +205,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         } finally {
           setState(() {
             _isLoading = false;
+            _selectedImageBytes = null;
           });
         }
       } else {
@@ -232,56 +275,48 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _uploadProfilePhoto() async {
     try {
-      print('📸 EditProfileScreen - Starting photo upload...');
-      final File? imageFile = await ImagePickerService.pickImage();
+      print('📸 EditProfileScreen - Starting photo selection...');
 
-      if (imageFile != null) {
+      Uint8List? imageBytes;
+
+      if (kIsWeb) {
+        print('🌐 Web platform detected, using web image picker...');
+        imageBytes = await ImagePickerService.pickImageWeb();
+      } else {
+        print('📱 Mobile platform detected, using standard image picker...');
+        imageBytes = await ImagePickerService.pickImageAsBytes();
+      }
+
+      if (imageBytes != null && imageBytes.isNotEmpty) {
         setState(() {
+          _selectedImageBytes = imageBytes;
           _isUploading = true;
         });
 
-        final imageBytes = await imageFile.readAsBytes();
-        final fileName =
-            'profile_${_currentUser!.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        print('✅ Photo selected, bytes length: ${imageBytes.length}');
 
-        final result = await AuthService.uploadProfilePhoto(
-          imageBytes,
-          fileName,
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Photo selected. Click "Save Changes" to update.'),
+            backgroundColor: Colors.blue,
+            duration: Duration(seconds: 2),
+          ),
         );
-
-        if (result['success']) {
-          print('✅ EditProfileScreen - Photo uploaded successfully');
-
-          // Update the current user object with the new photo
-          if (result['user'] != null) {
-            setState(() {
-              _currentUser = result['user'];
-            });
-          }
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Profile photo updated successfully!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } else {
-          print(
-            '❌ EditProfileScreen - Photo upload failed: ${result['message']}',
-          );
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message'] ?? 'Failed to upload photo'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+      } else {
+        print('❌ No image selected or image bytes are empty');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No image selected or image is invalid'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
     } catch (e) {
-      print('💥 EditProfileScreen - Error uploading photo: $e');
+      print('💥 EditProfileScreen - Error selecting photo: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error uploading photo: $e'),
+          content: Text('Error selecting photo: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -317,7 +352,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                   ),
                 ),
-              if (profilePhotoUrl != null && profilePhotoUrl.isNotEmpty)
+
+              // Show selected image if available, otherwise show current profile photo
+              if (_selectedImageBytes != null)
+                CircleAvatar(
+                  radius: 60,
+                  backgroundImage: MemoryImage(_selectedImageBytes!),
+                  backgroundColor: Colors.grey[300],
+                )
+              else if (profilePhotoUrl != null && profilePhotoUrl.isNotEmpty)
                 CircleAvatar(
                   radius: 60,
                   backgroundImage: NetworkImage(profilePhotoUrl),
@@ -416,9 +459,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     _buildProfileAvatar(),
                     SizedBox(height: 10),
                     Text(
-                      'Profile photo',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                      _selectedImageBytes != null
+                          ? 'New photo selected'
+                          : 'Profile photo',
+                      style: TextStyle(
+                        color: _selectedImageBytes != null
+                            ? Constants.primaryColor
+                            : Colors.grey[600],
+                        fontSize: 12,
+                        fontWeight: _selectedImageBytes != null
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
                     ),
+                    if (_selectedImageBytes != null)
+                      Text(
+                        'Click "Save Changes" to update',
+                        style: TextStyle(
+                          color: Colors.orange,
+                          fontSize: 10,
+                        ),
+                      ),
                   ],
                 ),
               ),

@@ -180,22 +180,48 @@ class _HomeScreenState extends State<HomeScreen> {
             SizedBox(height: 8),
             Text(
               _currentUser?.fullName ?? 'User',
-              style: TextStyle(fontSize: 18, color: Colors.grey[700]),
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.grey[700],
+                fontWeight: FontWeight.w500,
+              ),
             ),
             SizedBox(height: 16),
             Text(
-              _currentUser?.phone?.isNotEmpty == true
-                  ? 'Phone: ${_currentUser!.phone}'
-                  : 'Ready to book your next service?',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-            ),
-            if (_currentUser?.address?.isNotEmpty == true) ...[
-              SizedBox(height: 8),
-              Text(
-                'Address: ${_currentUser!.address}',
-                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              'Ready to book your next service?',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
               ),
-            ],
+            ),
+            SizedBox(height: 12),
+            // Show a motivational message instead of phone/address
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Constants.primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.emoji_events,
+                    color: Constants.primaryColor,
+                    size: 20,
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Complete your profile to get personalized service recommendations',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),

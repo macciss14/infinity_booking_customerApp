@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../services/auth_service.dart';
 import '../../services/image_picker_service.dart';
 import '../../models/user_model.dart';
@@ -80,15 +82,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _uploadProfilePhoto() async {
     try {
       print('📸 ProfileScreen - Starting photo upload process...');
-      final File? imageFile = await ImagePickerService.pickImage();
 
-      if (imageFile != null) {
+      Uint8List? imageBytes;
+
+      if (kIsWeb) {
+        print('🌐 Web platform detected, using web image picker...');
+        imageBytes = await ImagePickerService.pickImageWeb();
+      } else {
+        print('📱 Mobile platform detected, using standard image picker...');
+        imageBytes = await ImagePickerService.pickImageAsBytes();
+      }
+
+      if (imageBytes != null && imageBytes.isNotEmpty) {
         setState(() {
           _isUploading = true;
         });
 
-        print('🔄 Reading image bytes...');
-        final imageBytes = await imageFile.readAsBytes();
         final fileName =
             'profile_${_currentUser!.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
@@ -108,6 +117,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (result['success']) {
           print('✅ Photo uploaded successfully!');
 
+          // Update the user data immediately
           if (result['user'] != null) {
             print('   👤 Updated user received');
             setState(() {
@@ -136,7 +146,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
         }
       } else {
-        print('❌ No image selected');
+        print('❌ No image selected or image bytes are empty');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ No image selected or image is invalid'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
     } catch (e) {
       print('💥 ProfileScreen - Error in photo upload: $e');
@@ -206,6 +223,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   backgroundImage:
                       NetworkImage(_currentUser!.getProfilePhotoUrl()!),
                   backgroundColor: Colors.grey[300],
+                  onBackgroundImageError: (exception, stackTrace) {
+                    print('❌ Error loading profile image: $exception');
+                  },
                 )
               else
                 CircleAvatar(
@@ -416,6 +436,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         appBar: AppBar(
           title: Text('Profile'),
           backgroundColor: Constants.primaryColor,
+          foregroundColor: Colors.white,
         ),
         body: Center(child: CircularProgressIndicator()),
       );
@@ -426,6 +447,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         appBar: AppBar(
           title: Text('Profile'),
           backgroundColor: Constants.primaryColor,
+          foregroundColor: Colors.white,
         ),
         body: Center(
           child: Column(
