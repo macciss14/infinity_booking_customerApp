@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 class Constants {
   static const String apiBaseUrl =
-      'https://infinity-booking-backend1.onrender.com/infinity-booking';
+      'https://infinity-booking-backend1.onrender.com';
 
   // Colors
   static const Color primaryColor = Color(0xFF1E90FF);
@@ -23,30 +23,42 @@ class Constants {
 }
 
 class Endpoints {
+  // Base path
+  static const String basePath = '/infinity-booking';
+
   // Auth endpoints
-  static const String authLogin = '/auth/login';
-  static const String authRegisterCustomer = '/auth/register/customer';
+  static const String authLogin = '$basePath/auth/login';
+  static const String authRegisterCustomer = '$basePath/auth/register/customer';
 
   // Profile endpoints
-  static const String userProfile = '/users/profile';
-  static const String userChangePassword = '/users/change-password';
-  static const String userUploadProfilePhoto = '/users/profile-photo/upload';
-  static const String userUploadPhotoWithId = '/users/{id}/upload-photo';
-  static const String userUpdateProfile = '/users/{id}';
+  static const String userProfile = '$basePath/users/profile';
+  static const String userChangePassword = '$basePath/users/change-password';
+  static const String userUploadProfilePhoto =
+      '$basePath/users/profile-photo/upload';
+  static const String userUploadPhotoWithId =
+      '$basePath/users/{id}/upload-photo';
+  static const String userUpdateProfile = '$basePath/users/{id}';
 
   // Category endpoints
-  static const String categories = '/categories';
-  static const String categoryById = '/categories/{id}';
-  static const String categorySubcategories = '/categories/{id}/subcategories';
+  static const String categories = '$basePath/categories';
+  static const String categoryById = '$basePath/categories/{id}';
+  static const String categorySubcategories =
+      '$basePath/categories/{id}/subcategories';
 
-  // Service endpoints
-  static const String services = '/services';
-  static const String serviceById = '/services/{id}';
+  // Service endpoints - UPDATED
+  static const String services = '$basePath/services';
+  static const String serviceById = '$basePath/services/{id}';
+  static const String servicesByCategory =
+      '$basePath/services/category/{categoryId}';
+  static const String servicesBySubcategory =
+      '$basePath/services/subcategory/{subcategoryId}';
+  static const String servicesByCategoryAndSubcategory =
+      '$basePath/services/category/{categoryId}/{subcategoryId}';
 
   // Booking endpoints
-  static const String bookings = '/bookings';
-  static const String userBookings = '/bookings/user';
-  static const String bookingById = '/bookings/{id}';
+  static const String bookings = '$basePath/bookings';
+  static const String userBookings = '$basePath/bookings/user';
+  static const String bookingById = '$basePath/bookings/{id}';
 
   // Helper method to replace path parameters
   static String buildPath(String endpoint, Map<String, String> params) {

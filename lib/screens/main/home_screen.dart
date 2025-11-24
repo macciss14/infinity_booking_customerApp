@@ -4,9 +4,9 @@ import '../../services/booking_service.dart';
 import '../../models/user_model.dart';
 import '../../models/booking_model.dart';
 import '../../utils/constants.dart';
-import '../service/service_list_screen.dart';
+import '../service/categories_screen.dart';
 import 'bookings_screen.dart';
-import 'package:mobile_app/screens/main/profile_screen.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -35,7 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _currentUser = result['user'];
         });
-        print('✅ HomeScreen - User data loaded');
+        print('✅ HomeScreen - User data loaded: ${_currentUser?.fullName}');
       } else {
         print('❌ HomeScreen - Failed to load user data: ${result['message']}');
       }
@@ -195,7 +195,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             SizedBox(height: 12),
-            // Show a motivational message instead of phone/address
+
+            // User info card
             Container(
               padding: EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -211,12 +212,36 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      'Complete your profile to get personalized service recommendations',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[700],
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Complete your profile to get personalized service recommendations',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        if (_currentUser?.phone?.isEmpty ?? true)
+                          Text(
+                            '📱 Add your phone number',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Constants.primaryColor,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        if (_currentUser?.address?.isEmpty ?? true)
+                          Text(
+                            '🏠 Add your address',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Constants.primaryColor,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ],
@@ -254,7 +279,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Constants.primaryColor,
               () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => ServiceListScreen()),
+                MaterialPageRoute(builder: (context) => CategoriesScreen()),
               ),
             ),
             _buildActionCard(
@@ -352,7 +377,11 @@ class _HomeScreenState extends State<HomeScreen> {
               SizedBox(height: 12),
               Text(
                 title,
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: Colors.grey[800],
+                ),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -381,6 +410,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return Card(
       margin: EdgeInsets.only(bottom: 12),
       elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: ListTile(
         leading: Container(
           width: 40,
@@ -618,7 +650,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ElevatedButton(
               onPressed: () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => ServiceListScreen()),
+                MaterialPageRoute(builder: (context) => CategoriesScreen()),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Constants.primaryColor,
@@ -640,7 +672,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 1:
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => ServiceListScreen()),
+          MaterialPageRoute(builder: (context) => CategoriesScreen()),
         );
         break;
       case 2:
