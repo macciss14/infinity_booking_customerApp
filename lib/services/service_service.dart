@@ -1,83 +1,113 @@
-//service_service.dart
+// lib/services/service_service.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../models/service_model.dart';
-import 'api_service.dart';
 import '../utils/constants.dart';
+import '../models/service_model.dart';
+import '../utils/secure_storage.dart';
 
 class ServiceService {
-  static Future<List<Service>> getServices({
+  final SecureStorage _secureStorage = SecureStorage();
+
+  Future<List<ServiceModel>> getServices() async {
+    final token = await _secureStorage.getToken();
+    if (token == null) throw Exception('Not authenticated');
+
+    final response = await http.get(
+      Uri.parse('${AppConstants.apiBaseUrl}${AppConstants.servicesEndpoint}'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.map((json) => ServiceModel.fromJson(json)).toList();
+    } else {
+      throw Exception('Failed to load services: ${response.statusCode}');
+    }
+  }
+
+  Future<List<ServiceModel>> searchServices({
+    String? query,
     String? categoryId,
-    String? searchQuery,
-    int page = 1,
-    int limit = 10,
+    String? subcategoryId,
+    String? sort,
   }) async {
-    try {
-      print('🔄 ServiceService - Fetching services...');
+    final token = await _secureStorage.getToken();
+    if (token == null) throw Exception('Not authenticated');
 
-      // Build query parameters
-      final Map<String, String> queryParams = {
-        'page': page.toString(),
-        'limit': limit.toString(),
-      };
+    final queryParams = <String, String>{};
+    if (query != null && query.trim().isNotEmpty) {
+      queryParams['search'] = query.trim();
+    }
+    if (categoryId != null && categoryId.isNotEmpty) {
+      queryParams['categoryId'] = categoryId;
+    }
+    if (subcategoryId != null && subcategoryId.isNotEmpty) {
+      queryParams['subcategoryId'] = subcategoryId;
+    }
+    if (sort != null) {
+      queryParams['sort'] = sort;
+    }
 
-      if (categoryId != null && categoryId.isNotEmpty) {
-        queryParams['category'] = categoryId;
-      }
+    final uri =
+        Uri.parse('${AppConstants.apiBaseUrl}${AppConstants.servicesEndpoint}')
+            .replace(queryParameters: queryParams);
 
-      if (searchQuery != null && searchQuery.isNotEmpty) {
-        queryParams['search'] = searchQuery;
-      }
+    final response = await http.get(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
 
-      final queryString = Uri(queryParameters: queryParams).query;
-      final endpoint = '${Endpoints.services}?$queryString';
-
-      final response = await ApiService.makeRequest(endpoint, 'GET');
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final List<dynamic> servicesJson =
-            data is List ? data : data['services'] ?? data['data'] ?? [];
-
-        final services =
-            servicesJson.map((json) => Service.fromJson(json)).toList();
-        print('✅ ServiceService - Found ${services.length} services');
-        return services;
-      } else {
-        print(
-            '❌ ServiceService - Failed to fetch services: ${response.statusCode}');
-        throw Exception('Failed to load services: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('💥 ServiceService - Error: $e');
-      rethrow;
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.map((json) => ServiceModel.fromJson(json)).toList();
+    } else {
+      throw Exception('Search failed: ${response.statusCode}');
     }
   }
 
-  static Future<Service> getServiceById(String id) async {
-    try {
-      final endpoint = Endpoints.buildPath(Endpoints.serviceById, {'id': id});
-      final response = await ApiService.makeRequest(endpoint, 'GET');
+  Future<ServiceModel> getServiceById(String id) async {
+    final token = await _secureStorage.getToken();
+    if (token == null) throw Exception('Not authenticated');
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return Service.fromJson(data);
-      } else {
-        throw Exception('Failed to load service: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('💥 ServiceService - Error fetching service $id: $e');
-      rethrow;
+    final response = await http.get(
+      Uri.parse(
+          '${AppConstants.apiBaseUrl}${AppConstants.serviceDetailEndpoint.replaceAll('{id}', id)}'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return ServiceModel.fromJson(json.decode(response.body));
+    } else {
+      throw Exception('Failed to load service: ${response.statusCode}');
     }
   }
 
-  static Future<List<Service>> getFeaturedServices() async {
-    try {
-      final services = await getServices(limit: 6);
-      return services.take(6).toList(); // Get first 6 as featured
-    } catch (e) {
-      print('💥 ServiceService - Error fetching featured services: $e');
-      rethrow;
+  Future<List<dynamic>> getServiceSlots(String serviceId) async {
+    final token = await _secureStorage.getToken();
+    if (token == null) throw Exception('Not authenticated');
+
+    final response = await http.get(
+      Uri.parse(
+          '${AppConstants.apiBaseUrl}/infinity-booking/services/$serviceId/slots'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Failed to load slots: ${response.statusCode}');
     }
   }
 }

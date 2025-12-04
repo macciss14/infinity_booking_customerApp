@@ -1,118 +1,99 @@
-import 'package:flutter/material.dart';
-
-class Booking {
+// lib/models/booking_model.dart
+class BookingModel {
   final String id;
-  final String customerId;
   final String serviceId;
-  final String serviceTitle;
-  final String providerId;
+  final String serviceName;
   final String providerName;
-  final DateTime bookingDate;
-  final String timeSlot;
-  final double totalAmount;
-  final String status; // pending, confirmed, completed, cancelled
-  final String? customerNotes;
-  final String? providerNotes;
-  final String? cancellationReason;
-  final DateTime createdAt;
-  final DateTime? updatedAt;
+  final double price;
+  final String status;
+  final String? slotStart;
+  final String bookingDate;
+  final String? paymentMethod;
+  final String? priceUnit;
+  final String? serviceType;
+  final String? duration;
+  final String? locationType;
+  final String? serviceArea;
+  final bool? isFeatured;
+  final String? verificationStatus;
 
-  Booking({
+  BookingModel({
     required this.id,
-    required this.customerId,
     required this.serviceId,
-    required this.serviceTitle,
-    required this.providerId,
+    required this.serviceName,
     required this.providerName,
+    required this.price,
+    required this.status,
+    this.slotStart,
     required this.bookingDate,
-    required this.timeSlot,
-    required this.totalAmount,
-    this.status = 'pending',
-    this.customerNotes,
-    this.providerNotes,
-    this.cancellationReason,
-    required this.createdAt,
-    this.updatedAt,
+    this.paymentMethod,
+    this.priceUnit,
+    this.serviceType,
+    this.duration,
+    this.locationType,
+    this.serviceArea,
+    this.isFeatured,
+    this.verificationStatus,
   });
 
-  factory Booking.fromJson(Map<String, dynamic> json) {
-    return Booking(
-      id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
-      customerId: json['customerId']?.toString() ?? '',
-      serviceId: json['serviceId']?.toString() ?? '',
-      serviceTitle: json['serviceTitle']?.toString() ?? '',
-      providerId: json['providerId']?.toString() ?? '',
-      providerName: json['providerName']?.toString() ?? '',
-      bookingDate:
-          DateTime.parse(json['bookingDate'] ?? DateTime.now().toString()),
-      timeSlot: json['timeSlot']?.toString() ?? '',
-      totalAmount: (json['totalAmount'] ?? 0.0).toDouble(),
-      status: json['status']?.toString() ?? 'pending',
-      customerNotes: json['customerNotes']?.toString(),
-      providerNotes: json['providerNotes']?.toString(),
-      cancellationReason: json['cancellationReason']?.toString(),
-      createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toString()),
-      updatedAt:
-          json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
+  String get formattedPrice => '\$${price.toStringAsFixed(2)}';
+
+  String get formattedDate {
+    try {
+      final parts = bookingDate.split('T')[0].split('-');
+      if (parts.length == 3) return '${parts[2]}/${parts[1]}/${parts[0]}';
+      return bookingDate;
+    } catch (e) {
+      return bookingDate;
+    }
+  }
+
+  factory BookingModel.fromJson(Map<String, dynamic> json) {
+    // Handle service details from nested object
+    String serviceName = 'Service';
+    String providerName = 'Provider Unknown';
+    double price = 0.0;
+    String serviceId = '';
+
+    if (json['service'] is Map<String, dynamic>) {
+      final service = json['service'];
+      serviceName = service['title'] ?? service['name'] ?? 'Service';
+      serviceId = service['serviceId'] ?? '';
+
+      // Handle nested provider
+      if (service['provider'] is Map<String, dynamic>) {
+        providerName = service['provider']['fullname'] ?? 'Provider Unknown';
+      }
+
+      // Use totalPrice from service
+      price = (service['totalPrice'] ?? service['price'] ?? 0.0).toDouble();
+    } else {
+      // Fallback to flat structure
+      serviceName = json['serviceName'] ?? json['title'] ?? 'Service';
+      serviceId = json['serviceId'] ?? '';
+      providerName = json['providerName'] ?? 'Provider Unknown';
+      price = (json['totalPrice'] ?? json['price'] ?? 0.0).toDouble();
+    }
+
+    return BookingModel(
+      id: json['id'] ?? '',
+      serviceId: serviceId,
+      serviceName: serviceName,
+      providerName: providerName,
+      price: price,
+      status: json['status'] ?? 'pending',
+      slotStart: json['slotStart'],
+      bookingDate: json['bookingDate'] ??
+          json['createdAt'] ??
+          DateTime.now().toIso8601String(),
+      paymentMethod: json['paymentMethod'],
+      priceUnit: json['priceUnit'],
+      serviceType: json['serviceType'],
+      duration: json['duration'],
+      locationType: json['locationType'],
+      serviceArea: json['serviceArea'],
+      isFeatured: json['isFeatured'] is bool ? json['isFeatured'] : null,
+      verificationStatus: json['verificationStatus'],
     );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'customerId': customerId,
-      'serviceId': serviceId,
-      'serviceTitle': serviceTitle,
-      'providerId': providerId,
-      'providerName': providerName,
-      'bookingDate': bookingDate.toIso8601String(),
-      'timeSlot': timeSlot,
-      'totalAmount': totalAmount,
-      'status': status,
-      'customerNotes': customerNotes,
-      'providerNotes': providerNotes,
-      'cancellationReason': cancellationReason,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt?.toIso8601String(),
-    };
-  }
-
-  String get formattedAmount => 'ETB ${totalAmount.toStringAsFixed(2)}';
-  String get formattedDate =>
-      '${bookingDate.day}/${bookingDate.month}/${bookingDate.year}';
-
-  bool get isPending => status == 'pending';
-  bool get isConfirmed => status == 'confirmed';
-  bool get isCompleted => status == 'completed';
-  bool get isCancelled => status == 'cancelled';
-
-  Color get statusColor {
-    switch (status) {
-      case 'pending':
-        return Colors.orange;
-      case 'confirmed':
-        return Colors.blue;
-      case 'completed':
-        return Colors.green;
-      case 'cancelled':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String get statusText {
-    switch (status) {
-      case 'pending':
-        return 'Pending';
-      case 'confirmed':
-        return 'Confirmed';
-      case 'completed':
-        return 'Completed';
-      case 'cancelled':
-        return 'Cancelled';
-      default:
-        return 'Unknown';
-    }
   }
 }

@@ -1,111 +1,160 @@
-class Service {
+// lib/models/service_model.dart - UPDATED
+class ServiceModel {
   final String id;
-  final String title;
+  final String name;
   final String description;
   final double price;
   final String categoryId;
-  final String subcategoryId;
-  final String providerId;
+  final List<String> subcategoryIds;
   final String providerName;
-  final List<String> images;
-  final double rating;
-  final int reviewCount;
-  final String duration;
-  final bool isAvailable;
-  final String location;
-  final List<String> tags;
-  final List<String> availableTimeSlots;
-  final DateTime createdAt;
+  final String? imageUrl;
+  final String? paymentMethod;
+  final String? priceUnit;
+  final String? status;
+  final int? views;
+  final int? totalBookings;
+  final String? serviceType;
+  final List<dynamic> slots;
+  final String? duration;
+  final String? locationType;
+  final String? serviceArea;
+  final bool? isFeatured;
+  final String? verificationStatus;
+  final double? bookingPrice;
+  final String? categoryName;
+  final double? rating;
 
-  Service({
+  ServiceModel({
     required this.id,
-    required this.title,
+    required this.name,
     required this.description,
     required this.price,
     required this.categoryId,
-    this.subcategoryId = '',
-    required this.providerId,
+    required this.subcategoryIds,
     required this.providerName,
-    this.images = const [],
-    this.rating = 0.0,
-    this.reviewCount = 0,
-    this.duration = '1 hour',
-    this.isAvailable = true,
-    this.location = '',
-    this.tags = const [],
-    this.availableTimeSlots = const [],
-    required this.createdAt,
+    this.imageUrl,
+    this.paymentMethod,
+    this.priceUnit,
+    this.status,
+    this.views,
+    this.totalBookings,
+    this.serviceType,
+    this.slots = const [],
+    this.duration,
+    this.locationType,
+    this.serviceArea,
+    this.isFeatured,
+    this.verificationStatus,
+    this.bookingPrice,
+    this.categoryName,
+    this.rating,
   });
 
-  factory Service.fromJson(Map<String, dynamic> json) {
-    return Service(
-      id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
-      title: json['title']?.toString() ?? '',
-      description: json['description']?.toString() ?? '',
-      price: (json['price'] ?? json['price'] ?? 0.0).toDouble(),
-      categoryId:
-          json['categoryId']?.toString() ?? json['category']?.toString() ?? '',
-      subcategoryId: json['subcategoryId']?.toString() ??
-          json['subcategory']?.toString() ??
+  String get formattedPrice => '\$${price.toStringAsFixed(2)}';
+
+  factory ServiceModel.fromJson(Map<String, dynamic> json) {
+    // Handle nested structure: check if there's a 'service' key
+    Map<String, dynamic> serviceData;
+
+    if (json.containsKey('service') &&
+        json['service'] is Map<String, dynamic>) {
+      // Nested structure: {service: {...}, categoryId: '...', subcategoryIds: [...]}
+      serviceData = Map<String, dynamic>.from(json['service']);
+
+      // Use categoryId from root if available (overrides inner categoryId)
+      if (json['categoryId'] != null) {
+        serviceData['categoryId'] = json['categoryId'];
+      }
+
+      // Use subcategoryIds from root if available
+      if (json['subcategoryIds'] != null && json['subcategoryIds'] is List) {
+        serviceData['subcategoryIds'] = json['subcategoryIds'];
+      }
+
+      // Also check for singular subcategoryId
+      if (json['subcategoryId'] != null &&
+          json['subcategoryId'] != 'undefined') {
+        serviceData['subcategoryIds'] = [json['subcategoryId']];
+      }
+    } else {
+      // Flat structure
+      serviceData = json;
+    }
+
+    // Handle provider name from nested object
+    String providerName = 'Provider Unknown';
+    if (serviceData['provider'] is Map<String, dynamic>) {
+      providerName = serviceData['provider']['fullname'] ??
+          serviceData['provider']['name'] ??
+          'Provider Unknown';
+    } else if (json['provider'] is Map<String, dynamic>) {
+      // Check root level provider too
+      providerName = json['provider']['fullname'] ??
+          json['provider']['name'] ??
+          'Provider Unknown';
+    }
+
+    return ServiceModel(
+      id: serviceData['serviceId']?.toString() ??
+          serviceData['id']?.toString() ??
           '',
-      providerId:
-          json['providerId']?.toString() ?? json['provider']?.toString() ?? '',
-      providerName: json['providerName']?.toString() ?? 'Unknown Provider',
-      images:
-          (json['images'] as List?)?.map((e) => e.toString()).toList() ?? [],
-      rating: (json['rating'] ?? 0.0).toDouble(),
-      reviewCount: json['reviewCount'] ?? 0,
-      duration: json['duration']?.toString() ?? '1 hour',
-      isAvailable: json['isAvailable'] ?? true,
-      location: json['location']?.toString() ?? '',
-      tags: (json['tags'] as List?)?.map((e) => e.toString()).toList() ?? [],
-      availableTimeSlots: (json['availableTimeSlots'] as List?)
-              ?.map((e) => e.toString())
+      name: serviceData['title']?.toString() ??
+          serviceData['name']?.toString() ??
+          '',
+      description: serviceData['description']?.toString() ?? '',
+      price: _parseDouble(serviceData['totalPrice'] ?? serviceData['price']),
+      categoryId: serviceData['categoryId']?.toString() ?? '',
+      subcategoryIds: (serviceData['subcategoryIds'] as List<dynamic>?)
+              ?.map((id) => id.toString())
+              .where((id) => id.isNotEmpty && id != 'undefined')
               .toList() ??
-          (json['timeSlots'] as List?)?.map((e) => e.toString()).toList() ??
-          (json['availableSlots'] as List?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          (json['slots'] as List?)?.map((e) => e.toString()).toList() ??
           [],
-      createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toString()),
+      providerName: providerName,
+      imageUrl: (serviceData['banner'] as String?)?.trim() ??
+          (serviceData['imageUrl'] as String?)?.trim(),
+      paymentMethod: serviceData['paymentMethod']?.toString(),
+      priceUnit: serviceData['priceUnit']?.toString(),
+      status: serviceData['status']?.toString(),
+      views: _parseInt(serviceData['views']),
+      totalBookings: _parseInt(serviceData['totalBookings']),
+      serviceType: serviceData['serviceType']?.toString(),
+      slots: serviceData['slots'] is List<dynamic> ? serviceData['slots'] : [],
+      duration: serviceData['duration']?.toString(),
+      locationType: serviceData['locationType']?.toString(),
+      serviceArea: serviceData['serviceArea']?.toString(),
+      isFeatured: serviceData['isFeatured'] == true,
+      verificationStatus: serviceData['verificationStatus']?.toString(),
+      bookingPrice: _parseDouble(serviceData['bookingPrice']),
+      categoryName: serviceData['categoryName']?.toString(),
+      rating: _parseDouble(serviceData['rating']),
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'title': title,
-      'description': description,
-      'price': price,
-      'categoryId': categoryId,
-      'subcategoryId': subcategoryId,
-      'providerId': providerId,
-      'providerName': providerName,
-      'images': images,
-      'rating': rating,
-      'reviewCount': reviewCount,
-      'duration': duration,
-      'isAvailable': isAvailable,
-      'location': location,
-      'tags': tags,
-      'availableTimeSlots': availableTimeSlots,
-      'createdAt': createdAt.toIso8601String(),
-    };
+  static double _parseDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) {
+      try {
+        return double.parse(value);
+      } catch (_) {
+        return 0.0;
+      }
+    }
+    return 0.0;
   }
 
-  String get formattedPrice => 'ETB ${price.toStringAsFixed(2)}';
-  String get ratingText => rating.toStringAsFixed(1);
-
-  bool get hasAvailableTimeSlots => availableTimeSlots.isNotEmpty;
-
-  List<String> get formattedTimeSlots {
-    return availableTimeSlots.map((slot) {
-      return slot;
-    }).toList();
-  }
-
-  bool isTimeSlotAvailable(String timeSlot) {
-    return availableTimeSlots.contains(timeSlot);
+  static int _parseInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) {
+      try {
+        return int.parse(value);
+      } catch (_) {
+        return 0;
+      }
+    }
+    return 0;
   }
 }

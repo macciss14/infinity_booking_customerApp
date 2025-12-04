@@ -1,156 +1,134 @@
-import '../utils/constants.dart';
+// models/user_model.dart
+import '../utils/constants.dart'; // Add this import
 
-class User {
+class UserModel {
   final String id;
-  final String fullName;
+  final String fullname;
   final String email;
-  final String phone;
-  final String address;
-  final String? profilePhoto;
-  final List<String>? preferredServices;
-  final bool twoFactorEnabled;
-  final DateTime registrationDate;
+  final String phonenumber;
+  final String? profilephoto;
+  final String? address;
+  final DateTime createdAt;
+  final DateTime? updatedAt;
+  final String? customerProfileId; // Add this to store the nested ID
 
-  User({
+  UserModel({
     required this.id,
-    required this.fullName,
+    required this.fullname,
     required this.email,
-    required this.phone,
-    required this.address,
-    this.profilePhoto,
-    this.preferredServices,
-    this.twoFactorEnabled = false,
-    required this.registrationDate,
+    required this.phonenumber,
+    this.profilephoto,
+    this.address,
+    required this.createdAt,
+    this.updatedAt,
+    this.customerProfileId,
   });
 
-  factory User.fromJson(Map<String, dynamic> json) {
-    print('🔄 User.fromJson - parsing user: ${json.keys}');
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    // Extract user ID from top-level (this is what you should use for /users/{id})
+    final userId = (json['_id'] ?? json['id'] ?? '').toString();
 
-    // Enhanced profile photo extraction
-    String? photo;
-    if (json['profilePhoto'] != null && json['profilePhoto'] != "") {
-      photo = json['profilePhoto'];
-    } else if (json['profilePicture'] != null) {
-      photo = json['profilePicture'];
-    } else if (json['avatar'] != null) {
-      photo = json['avatar'];
-    } else if (json['photoUrl'] != null) {
-      photo = json['photoUrl'];
-    } else if (json['image'] != null) {
-      photo = json['image'];
-    } else if (json['photo'] != null) {
-      photo = json['photo'];
+    // Extract customer profile ID if exists
+    String? customerProfileId;
+    Map<String, dynamic> userData = json;
+
+    if (json.containsKey('customerProfile') && json['customerProfile'] is Map) {
+      final customerProfile =
+          Map<String, dynamic>.from(json['customerProfile']);
+      customerProfileId = customerProfile['_id']?.toString();
+
+      // Merge customer profile data with top-level data
+      userData = {
+        ...customerProfile,
+        // Keep top-level fields that might not be in customerProfile
+        'profilePhoto': json['profilePhoto'] ?? customerProfile['profilePhoto'],
+        'email': json['email'] ?? customerProfile['email'],
+      };
     }
 
-    // Enhanced phone extraction - handle different field names
-    String phone = '';
-    if (json['phonenumber'] != null &&
-        json['phonenumber'].toString().isNotEmpty) {
-      phone = json['phonenumber'].toString();
-    } else if (json['phoneNumber'] != null &&
-        json['phoneNumber'].toString().isNotEmpty) {
-      phone = json['phoneNumber'].toString();
-    } else if (json['phone'] != null && json['phone'].toString().isNotEmpty) {
-      phone = json['phone'].toString();
-    } else if (json['mobile'] != null && json['mobile'].toString().isNotEmpty) {
-      phone = json['mobile'].toString();
-    }
-
-    // Enhanced address extraction
-    String address = '';
-    if (json['address'] != null && json['address'].toString().isNotEmpty) {
-      address = json['address'].toString();
-    } else if (json['location'] != null &&
-        json['location'].toString().isNotEmpty) {
-      address = json['location'].toString();
-    } else if (json['userAddress'] != null &&
-        json['userAddress'].toString().isNotEmpty) {
-      address = json['userAddress'].toString();
-    }
-
-    DateTime created;
-    try {
-      String dateString = json['registeredAt']?.toString() ??
-          json['createdAt']?.toString() ??
-          json['registrationDate']?.toString() ??
-          DateTime.now().toString();
-      created = DateTime.parse(dateString);
-    } catch (_) {
-      created = DateTime.now();
-    }
-
-    print('📱 Extracted phone: "$phone"');
-    print('🏠 Extracted address: "$address"');
-    print('📸 Extracted photo: $photo');
-
-    return User(
-      id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
-      fullName: json['fullname']?.toString() ??
-          json['fullName']?.toString() ??
-          json['name']?.toString() ??
-          'Unknown User',
-      email: json['email']?.toString() ?? '',
-      phone: phone,
-      address: address,
-      profilePhoto: photo,
-      preferredServices: (json['preferredServices'] as List?)
-          ?.map((e) => e.toString())
-          .toList(),
-      twoFactorEnabled: json['isTwoFactorEnabled'] ?? false,
-      registrationDate: created,
+    return UserModel(
+      id: userId, // Use top-level user ID for API calls
+      fullname: userData['fullname'] ?? userData['name'] ?? '',
+      email: userData['email'] ?? '',
+      phonenumber: userData['phonenumber'] ??
+          userData['phone'] ??
+          userData['phoneNumber'] ??
+          '',
+      profilephoto: json['profilePhoto'] ??
+          userData['profilePhoto'] ??
+          userData['profilephoto'] ??
+          userData['profileImage'] ??
+          userData['avatar'] ??
+          userData['photo'] ??
+          null,
+      address: userData['address'] ?? userData['location'] ?? null,
+      createdAt: userData['createdAt'] != null
+          ? DateTime.tryParse(userData['createdAt'].toString()) ??
+              DateTime.now()
+          : DateTime.now(),
+      updatedAt: userData['updatedAt'] != null
+          ? DateTime.tryParse(userData['updatedAt'].toString())
+          : null,
+      customerProfileId: customerProfileId,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'fullname': fullName,
+      'fullname': fullname,
       'email': email,
-      'phonenumber': phone,
+      'phonenumber': phonenumber,
+      'profilephoto': profilephoto,
       'address': address,
-      'profilePhoto': profilePhoto,
-      'preferredServices': preferredServices,
-      'isTwoFactorEnabled': twoFactorEnabled,
-      'registeredAt': registrationDate.toIso8601String(),
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
+      'customerProfileId': customerProfileId,
     };
   }
 
-  User copyWith({
+  UserModel copyWith({
     String? id,
-    String? fullName,
+    String? fullname,
     String? email,
-    String? phone,
+    String? phonenumber,
+    String? profilephoto,
     String? address,
-    String? profilePhoto,
-    List<String>? preferredServices,
-    bool? twoFactorEnabled,
-    DateTime? registrationDate,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? customerProfileId,
   }) {
-    return User(
+    return UserModel(
       id: id ?? this.id,
-      fullName: fullName ?? this.fullName,
+      fullname: fullname ?? this.fullname,
       email: email ?? this.email,
-      phone: phone ?? this.phone,
+      phonenumber: phonenumber ?? this.phonenumber,
+      profilephoto: profilephoto ?? this.profilephoto,
       address: address ?? this.address,
-      profilePhoto: profilePhoto ?? this.profilePhoto,
-      preferredServices: preferredServices ?? this.preferredServices,
-      twoFactorEnabled: twoFactorEnabled ?? this.twoFactorEnabled,
-      registrationDate: registrationDate ?? this.registrationDate,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      customerProfileId: customerProfileId ?? this.customerProfileId,
     );
   }
 
-  String? getProfilePhotoUrl() {
-    if (profilePhoto == null || profilePhoto!.isEmpty) return null;
+  // Helper method to get complete profile photo URL
+  String get completeProfilePhotoUrl {
+    if (profilephoto == null || profilephoto!.isEmpty) return '';
 
-    if (profilePhoto!.startsWith("http")) {
-      return profilePhoto;
+    if (profilephoto!.startsWith('http')) {
+      return profilephoto!;
+    } else {
+      // Handle relative paths
+      String relativePath = profilephoto!;
+      if (!relativePath.startsWith('/')) {
+        relativePath = '/$relativePath';
+      }
+      return '${AppConstants.baseUrl}$relativePath';
     }
+  }
 
-    // Handle relative URLs
-    if (profilePhoto!.startsWith("/")) {
-      return "${Constants.apiBaseUrl}${profilePhoto}";
-    }
-
-    return "${Constants.apiBaseUrl}/uploads/$profilePhoto";
+  @override
+  String toString() {
+    return 'UserModel(id: $id, fullname: $fullname, email: $email, phonenumber: $phonenumber, profilephoto: $profilephoto, address: $address, customerProfileId: $customerProfileId)';
   }
 }

@@ -1,104 +1,147 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
-import 'screens/landing/landing_page.dart';
-import 'screens/auth/login_screen.dart';
-import 'screens/auth/register_screen.dart';
-import 'screens/main/home_screen.dart';
-import 'screens/main/profile_screen.dart';
-import 'screens/profile/edit_profile_screen.dart';
+import 'config/route_helper.dart';
 import 'services/auth_service.dart';
+import 'screens/landing/landing_page.dart';
+import 'screens/main/main_screen.dart';
 import 'utils/constants.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: Constants.appName,
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        colorScheme: ColorScheme.fromSeed(seedColor: Constants.primaryColor),
-        useMaterial3: true,
-      ),
-      home: AuthWrapper(),
-      routes: {
-        '/': (context) => LandingPage(),
-        '/login': (context) => LoginScreen(),
-        '/register': (context) => RegisterScreen(),
-        '/home': (context) => HomeScreen(),
-        '/profile': (context) => ProfileScreen(),
-        '/edit-profile': (context) => EditProfileScreen(),
+      title: AppStrings.appName,
+      theme: appTheme(),
+      initialRoute: RouteHelper.initial,
+      onGenerateRoute: RouteHelper.generateRoute,
+      debugShowCheckedModeBanner: false,
+      home: const AppStartupScreen(),
+    );
+  }
+}
+
+class AppStartupScreen extends StatefulWidget {
+  const AppStartupScreen({super.key});
+
+  @override
+  State<AppStartupScreen> createState() => _AppStartupScreenState();
+}
+
+class _AppStartupScreenState extends State<AppStartupScreen> {
+  late Future<bool> _checkAuthStatus;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuthStatus = _checkAuthentication();
+  }
+
+  Future<bool> _checkAuthentication() async {
+    final authService = AuthService();
+    return await authService.isLoggedIn();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _checkAuthStatus,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SplashScreen();
+        }
+        if (snapshot.hasError) {
+          return ErrorScreen(error: snapshot.error.toString());
+        }
+        final isLoggedIn = snapshot.data ?? false;
+        return isLoggedIn ? const MainScreen() : const LandingPage();
       },
     );
   }
 }
 
-class AuthWrapper extends StatefulWidget {
-  @override
-  _AuthWrapperState createState() => _AuthWrapperState();
-}
-
-class _AuthWrapperState extends State<AuthWrapper> {
-  bool _isCheckingAuth = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkAuthStatus();
-  }
-
-  Future<void> _checkAuthStatus() async {
-    try {
-      print('🔐 AuthWrapper - Checking authentication status...');
-      final isLoggedIn = await AuthService.isLoggedIn();
-      print('🔐 AuthWrapper - User logged in: $isLoggedIn');
-
-      setState(() {
-        _isCheckingAuth = false;
-      });
-    } catch (e) {
-      print('💥 AuthWrapper - Error checking auth: $e');
-      setState(() {
-        _isCheckingAuth = false;
-      });
-    }
-  }
+class SplashScreen extends StatelessWidget {
+  const SplashScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    if (_isCheckingAuth) {
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 20),
-              Text('Loading...', style: TextStyle(color: Colors.grey[600])),
-            ],
-          ),
+    return Scaffold(
+      backgroundColor: AppColors.primary,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.calendar_today,
+              size: 80,
+              color: Colors.white,
+            ),
+            const SizedBox(height: 20),
+            Text(
+              AppStrings.appName,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 20),
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ],
         ),
-      );
-    }
+      ),
+    );
+  }
+}
 
-    return FutureBuilder<bool>(
-      future: AuthService.isLoggedIn(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(body: Center(child: CircularProgressIndicator()));
-        } else {
-          bool isLoggedIn = snapshot.data ?? false;
-          print('🔐 AuthWrapper - Final decision - Logged in: $isLoggedIn');
+class ErrorScreen extends StatelessWidget {
+  final String error;
 
-          if (isLoggedIn) {
-            return HomeScreen();
-          } else {
-            return LandingPage();
-          }
-        }
-      },
+  const ErrorScreen({super.key, required this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Colors.red,
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Startup Error',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32.0),
+              child: Text(
+                error,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pushReplacementNamed(context, RouteHelper.initial);
+              },
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

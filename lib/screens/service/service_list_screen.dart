@@ -1,523 +1,428 @@
+// lib/screens/service/service_list_screen.dart
 import 'package:flutter/material.dart';
-import '../../services/category_service.dart';
-import '../../services/service_service.dart';
 import '../../models/category_model.dart';
 import '../../models/service_model.dart';
+import '../../models/subcategory_model.dart';
+import '../../services/category_service.dart';
+import '../../services/service_service.dart';
 import '../../utils/constants.dart';
 import 'service_detail_screen.dart';
 
 class ServiceListScreen extends StatefulWidget {
-  final String? categoryId;
-  final String? categoryName;
-
-  const ServiceListScreen({Key? key, this.categoryId, this.categoryName})
-      : super(key: key);
+  const ServiceListScreen({super.key});
 
   @override
-  _ServiceListScreenState createState() => _ServiceListScreenState();
+  State<ServiceListScreen> createState() => _ServiceListScreenState();
 }
 
 class _ServiceListScreenState extends State<ServiceListScreen> {
-  List<Service> _services = [];
-  List<Category> _categories = [];
-  bool _isLoading = true;
-  String _searchQuery = '';
-  String _selectedCategoryId = '';
-  int _currentPage = 1;
-  bool _hasMore = true;
+  final ServiceService _serviceService = ServiceService();
+  final CategoryService _categoryService = CategoryService();
+
+  late Future<List<CategoryModel>> _categoriesFuture;
+  Future<List<SubcategoryModel>>? _subcategoriesFuture;
+  late Future<List<ServiceModel>> _servicesFuture;
+
+  String? _selectedCategoryId;
+  String? _selectedSubcategoryId;
+  String? _selectedSort = 'newest';
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _selectedCategoryId = widget.categoryId ?? '';
     _loadInitialData();
+    _searchController.addListener(_onSearchChanged);
   }
 
-  Future<void> _loadInitialData() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final categories = await CategoryService.getCategories();
-      final services = await ServiceService.getServices(
-        categoryId: _selectedCategoryId,
-        searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
-      );
-
-      setState(() {
-        _categories = categories;
-        _services = services;
-        _isLoading = false;
-        _hasMore = services.length >= 10;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      _showErrorSnackbar('Failed to load services: $e');
-    }
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
   }
 
-  Future<void> _loadMoreServices() async {
-    if (!_hasMore || _isLoading) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final moreServices = await ServiceService.getServices(
-        categoryId: _selectedCategoryId.isEmpty ? null : _selectedCategoryId,
-        searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
-        page: _currentPage + 1,
-      );
-
-      setState(() {
-        _services.addAll(moreServices);
-        _currentPage++;
-        _hasMore = moreServices.length >= 10;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      _showErrorSnackbar('Failed to load more services: $e');
-    }
+  void _loadInitialData() {
+    _categoriesFuture = _categoryService.getCategories();
+    _servicesFuture = _serviceService.getServices();
   }
 
-  void _showErrorSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Constants.errorColor,
-      ),
-    );
-  }
+  void _onSearchChanged() => _refreshServices();
 
-  void _onSearch(String query) {
-    setState(() {
-      _searchQuery = query;
-      _currentPage = 1;
-      _services.clear();
-    });
-    _loadInitialData();
-  }
-
-  void _onCategorySelected(String categoryId) {
+  void _onCategorySelected(String? categoryId) {
     setState(() {
       _selectedCategoryId = categoryId;
-      _currentPage = 1;
-      _services.clear();
+      _selectedSubcategoryId = null;
+      if (categoryId != null) {
+        _subcategoriesFuture =
+            _categoryService.getSubcategoriesByCategory(categoryId);
+      } else {
+        _subcategoriesFuture = null;
+      }
     });
-    _loadInitialData();
+    _refreshServices();
   }
 
-  void _clearFilters() {
+  void _onSubcategorySelected(String? subcategoryId) {
     setState(() {
-      _selectedCategoryId = '';
-      _searchQuery = '';
-      _currentPage = 1;
-      _services.clear();
+      _selectedSubcategoryId = subcategoryId;
     });
-    _loadInitialData();
+    _refreshServices();
+  }
+
+  void _onSortChanged(String? value) {
+    setState(() {
+      _selectedSort = value;
+    });
+    _refreshServices();
+  }
+
+  void _refreshServices() {
+    setState(() {
+      _servicesFuture = _serviceService
+          .searchServices(
+        query: _searchController.text,
+        categoryId: _selectedCategoryId,
+        subcategoryId: _selectedSubcategoryId,
+        sort: _selectedSort,
+      )
+          .catchError((error) {
+        print('Service search error: $error');
+        return [];
+      });
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.categoryName ?? 'All Services',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Constants.primaryColor,
-        foregroundColor: Colors.white,
-      ),
       body: Column(
         children: [
-          // Search and Filter Section
-          _buildSearchFilterSection(),
-
-          // Services List
-          Expanded(
-            child: _isLoading && _services.isEmpty
-                ? _buildLoadingIndicator()
-                : _services.isEmpty
-                    ? _buildEmptyState()
-                    : _buildServicesList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSearchFilterSection() {
-    return Container(
-      padding: EdgeInsets.all(AppConstants.defaultPadding),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Search Bar
-          TextField(
-            onChanged: _onSearch,
-            decoration: InputDecoration(
-              hintText: 'Search services...',
-              prefixIcon: Icon(Icons.search, color: Constants.primaryColor),
-              border: OutlineInputBorder(
-                borderRadius:
-                    BorderRadius.circular(AppConstants.defaultBorderRadius),
-              ),
-              contentPadding:
-                  EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            ),
-          ),
-          SizedBox(height: 12),
-
-          // Categories Filter
-          _buildCategoriesFilter(),
-
-          // Active Filters
-          if (_selectedCategoryId.isNotEmpty || _searchQuery.isNotEmpty)
-            _buildActiveFilters(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCategoriesFilter() {
-    return SizedBox(
-      height: 50,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: _categories.length + 1, // +1 for "All" option
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return _buildCategoryChip(
-              category: Category(
-                id: '',
-                name: 'All',
-                description: 'All categories',
-                createdAt: DateTime.now(),
-              ),
-              isSelected: _selectedCategoryId.isEmpty,
-            );
-          }
-
-          final category = _categories[index - 1];
-          return _buildCategoryChip(
-            category: category,
-            isSelected: _selectedCategoryId == category.id,
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildCategoryChip(
-      {required Category category, required bool isSelected}) {
-    return Container(
-      margin: EdgeInsets.only(right: 8),
-      child: FilterChip(
-        label: Text(category.name),
-        selected: isSelected,
-        onSelected: (selected) {
-          if (selected) {
-            _onCategorySelected(category.id);
-          } else {
-            _onCategorySelected('');
-          }
-        },
-        backgroundColor: Colors.grey[100],
-        selectedColor: Constants.primaryColor.withOpacity(0.2),
-        checkmarkColor: Constants.primaryColor,
-        labelStyle: TextStyle(
-          color: isSelected ? Constants.primaryColor : Colors.grey[700],
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActiveFilters() {
-    return Row(
-      children: [
-        Text(
-          'Active filters:',
-          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-        ),
-        SizedBox(width: 8),
-        if (_selectedCategoryId.isNotEmpty)
-          Chip(
-            label: Text(
-              _categories
-                  .firstWhere((cat) => cat.id == _selectedCategoryId)
-                  .name,
-              style: TextStyle(fontSize: 12),
-            ),
-            backgroundColor: Constants.primaryColor.withOpacity(0.1),
-            deleteIcon: Icon(Icons.close, size: 16),
-            onDeleted: () => _onCategorySelected(''),
-          ),
-        if (_searchQuery.isNotEmpty)
-          Chip(
-            label: Text(
-              '"$_searchQuery"',
-              style: TextStyle(fontSize: 12),
-            ),
-            backgroundColor: Constants.accentColor.withOpacity(0.1),
-            deleteIcon: Icon(Icons.close, size: 16),
-            onDeleted: () => _onSearch(''),
-          ),
-        Spacer(),
-        TextButton(
-          onPressed: _clearFilters,
-          child: Text(
-            'Clear all',
-            style: TextStyle(
-              color: Constants.primaryColor,
-              fontSize: 12,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildServicesList() {
-    return NotificationListener<ScrollNotification>(
-      onNotification: (scrollNotification) {
-        if (scrollNotification is ScrollEndNotification &&
-            scrollNotification.metrics.pixels ==
-                scrollNotification.metrics.maxScrollExtent &&
-            _hasMore) {
-          _loadMoreServices();
-        }
-        return false;
-      },
-      child: ListView.builder(
-        padding: EdgeInsets.all(AppConstants.defaultPadding),
-        itemCount: _services.length + (_hasMore ? 1 : 0),
-        itemBuilder: (context, index) {
-          if (index == _services.length) {
-            return _buildLoadMoreIndicator();
-          }
-          return _buildServiceItem(_services[index]);
-        },
-      ),
-    );
-  }
-
-  Widget _buildServiceItem(Service service) {
-    return Card(
-      margin: EdgeInsets.only(bottom: 16),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppConstants.defaultBorderRadius),
-      ),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ServiceDetailScreen(service: service),
-            ),
-          );
-        },
-        borderRadius: BorderRadius.circular(AppConstants.defaultBorderRadius),
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Service Image
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  color: Colors.grey[200],
-                  image: service.images.isNotEmpty
-                      ? DecorationImage(
-                          image: NetworkImage(service.images.first),
-                          fit: BoxFit.cover,
-                        )
-                      : null,
+          // 🔍 Search Bar
+          Padding(
+            padding: EdgeInsets.all(AppConstants.defaultPadding),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search services, providers, categories...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius:
+                      BorderRadius.circular(AppConstants.defaultBorderRadius),
                 ),
-                child: service.images.isEmpty
-                    ? Icon(Icons.construction, color: Colors.grey[400])
-                    : null,
               ),
-              SizedBox(width: 16),
+            ),
+          ),
 
-              // Service Details
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          // 🏷️ Categories
+          FutureBuilder<List<CategoryModel>>(
+            future: _categoriesFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Padding(
+                  padding: EdgeInsets.symmetric(
+                      horizontal: AppConstants.defaultPadding),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: List.generate(4, (index) => _buildLoadingChip()),
+                  ),
+                );
+              }
+              if (snapshot.hasError) {
+                return Padding(
+                  padding: EdgeInsets.symmetric(
+                      horizontal: AppConstants.defaultPadding),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Categories:',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Text('Error loading categories',
+                          style: const TextStyle(color: Colors.red)),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _categoriesFuture =
+                                _categoryService.getCategories();
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              final categories = snapshot.data ?? [];
+              return Padding(
+                padding: EdgeInsets.symmetric(
+                    horizontal: AppConstants.defaultPadding),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
-                    Text(
-                      service.title,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    _buildCategoryChip(
+                      label: 'All',
+                      isSelected: _selectedCategoryId == null,
+                      onPressed: () => _onCategorySelected(null),
                     ),
-                    SizedBox(height: 4),
-                    Text(
-                      service.description.truncate(80),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(Icons.star, color: Colors.amber, size: 16),
-                        SizedBox(width: 4),
-                        Text(
-                          service.ratingText,
-                          style: TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.w500),
-                        ),
-                        SizedBox(width: 8),
-                        Text(
-                          '(${service.reviewCount})',
-                          style:
-                              TextStyle(fontSize: 12, color: Colors.grey[600]),
-                        ),
-                        Spacer(),
-                        Icon(Icons.schedule, size: 14, color: Colors.grey[500]),
-                        SizedBox(width: 4),
-                        Text(
-                          service.duration,
-                          style:
-                              TextStyle(fontSize: 12, color: Colors.grey[600]),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Text(
-                          service.formattedPrice,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Constants.primaryColor,
-                          ),
-                        ),
-                        Spacer(),
-                        Container(
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: service.isAvailable
-                                ? Constants.successColor.withOpacity(0.1)
-                                : Constants.errorColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            service.isAvailable ? 'Available' : 'Unavailable',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: service.isAvailable
-                                  ? Constants.successColor
-                                  : Constants.errorColor,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                    ...categories.map((cat) => _buildCategoryChip(
+                          label: cat.name,
+                          isSelected: _selectedCategoryId == cat.id,
+                          onPressed: () => _onCategorySelected(cat.id),
+                        )),
                   ],
                 ),
-              ),
-            ],
+              );
+            },
           ),
+
+          // 🧩 Subcategories (only when category selected)
+          if (_selectedCategoryId != null)
+            Padding(
+              padding:
+                  EdgeInsets.symmetric(horizontal: AppConstants.defaultPadding),
+              child: FutureBuilder<List<SubcategoryModel>>(
+                future: _subcategoriesFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children:
+                          List.generate(3, (index) => _buildLoadingChip()),
+                    );
+                  }
+                  if (snapshot.hasError) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Subcategory:',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text('Error loading subcategories',
+                            style: const TextStyle(color: Colors.red)),
+                        const SizedBox(height: 8),
+                        ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              _subcategoriesFuture =
+                                  _categoryService.getSubcategoriesByCategory(
+                                      _selectedCategoryId!);
+                            });
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                          ),
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    );
+                  }
+                  final subs = snapshot.data ?? [];
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Subcategory:',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _buildCategoryChip(
+                            label: 'All',
+                            isSelected: _selectedSubcategoryId == null,
+                            onPressed: () => _onSubcategorySelected(null),
+                          ),
+                          ...subs.map((sub) => _buildCategoryChip(
+                                label: sub.name,
+                                isSelected: _selectedSubcategoryId == sub.id,
+                                onPressed: () => _onSubcategorySelected(sub.id),
+                              )),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+
+          // 📊 Sort Dropdown
+          Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: AppConstants.defaultPadding,
+              vertical: 8,
+            ),
+            child: Row(
+              children: [
+                const Text('Sort:'),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: DropdownButton<String>(
+                    value: _selectedSort,
+                    items: const [
+                      DropdownMenuItem(value: 'newest', child: Text('Newest')),
+                      DropdownMenuItem(value: 'oldest', child: Text('Oldest')),
+                      DropdownMenuItem(
+                          value: 'priceAsc', child: Text('Price: Low to High')),
+                      DropdownMenuItem(
+                          value: 'priceDesc',
+                          child: Text('Price: High to Low')),
+                    ],
+                    onChanged: _onSortChanged,
+                    isExpanded: true,
+                    underline: Container(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // 📋 Services List
+          Expanded(
+            child: FutureBuilder<List<ServiceModel>>(
+              future: _servicesFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return _buildErrorWidget(snapshot.error.toString());
+                }
+                final services = snapshot.data ?? [];
+                if (services.isEmpty) {
+                  return const Center(child: Text('No services found'));
+                }
+                return ListView.builder(
+                  padding: EdgeInsets.all(AppConstants.defaultPadding),
+                  itemCount: services.length,
+                  itemBuilder: (context, index) {
+                    final service = services[index];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                            AppConstants.defaultBorderRadius),
+                      ),
+                      child: ListTile(
+                        leading: service.imageUrl != null
+                            ? CircleAvatar(
+                                radius: 25,
+                                backgroundImage:
+                                    NetworkImage(service.imageUrl!),
+                              )
+                            : const CircleAvatar(
+                                radius: 25,
+                                backgroundColor: Colors.grey,
+                                child: Icon(Icons.build, color: Colors.white),
+                              ),
+                        title: Text(
+                          service.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(text: '${service.providerName}'),
+                              const TextSpan(text: ' • '),
+                              TextSpan(
+                                text: '\$${service.price.toStringAsFixed(2)}',
+                                style: TextStyle(color: AppColors.secondary),
+                              ),
+                            ],
+                          ),
+                        ),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                ServiceDetailScreen(serviceId: service.id),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryChip({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onPressed,
+  }) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (selected) => onPressed(),
+      selectedColor: AppColors.primary,
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: isSelected ? AppColors.primary : const Color(0xFFCED4DA),
         ),
       ),
     );
   }
 
-  Widget _buildLoadingIndicator() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(color: Constants.primaryColor),
-          SizedBox(height: 16),
-          Text(
-            'Loading services...',
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-        ],
+  Widget _buildLoadingChip() {
+    return Container(
+      width: 80,
+      height: 32,
+      decoration: BoxDecoration(
+        color: Colors.grey[300],
+        borderRadius: BorderRadius.circular(20),
       ),
     );
   }
 
-  Widget _buildLoadMoreIndicator() {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 16),
-      child: Center(
-        child: _isLoading
-            ? CircularProgressIndicator(color: Constants.primaryColor)
-            : Text(
-                'No more services',
-                style: TextStyle(color: Colors.grey[500]),
-              ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
+  Widget _buildErrorWidget(String error) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
-          SizedBox(height: 16),
-          Text(
-            'No services found',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[600],
+      child: Padding(
+        padding: EdgeInsets.all(AppConstants.defaultPadding),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error, color: Colors.red, size: 64),
+            const SizedBox(height: 16),
+            const Text(
+              'Failed to load services',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            _searchQuery.isNotEmpty
-                ? 'Try adjusting your search terms'
-                : 'No services available in this category',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey[500]),
-          ),
-          SizedBox(height: 20),
-          if (_searchQuery.isNotEmpty || _selectedCategoryId.isNotEmpty)
+            const SizedBox(height: 8),
+            Text(
+              error,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.red, fontSize: 12),
+            ),
+            const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: _clearFilters,
+              onPressed: _refreshServices,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Constants.primaryColor,
+                backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
               ),
-              child: Text('Clear Filters'),
+              child: const Text('Retry'),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }

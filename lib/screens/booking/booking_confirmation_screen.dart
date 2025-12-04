@@ -1,323 +1,225 @@
+// lib/screens/booking/booking_confirmation_screen.dart
 import 'package:flutter/material.dart';
-import '../../models/booking_model.dart';
+import '../../services/booking_service.dart';
+import '../../services/service_service.dart';
+import '../../models/service_model.dart';
+import '../../utils/secure_storage.dart';
 import '../../utils/constants.dart';
+import '../../config/route_helper.dart';
 
-class BookingConfirmationScreen extends StatelessWidget {
-  final Booking booking;
+class BookingConfirmationScreen extends StatefulWidget {
+  final Map<String, dynamic> bookingData;
+  const BookingConfirmationScreen({super.key, required this.bookingData});
 
-  const BookingConfirmationScreen({Key? key, required this.booking})
-      : super(key: key);
+  @override
+  State<BookingConfirmationScreen> createState() =>
+      _BookingConfirmationScreenState();
+}
+
+class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
+  final ServiceService _serviceService = ServiceService();
+  final BookingService _bookingService = BookingService();
+  late Future<ServiceModel> _serviceFuture;
+  bool _isProcessing = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _serviceFuture =
+        _serviceService.getServiceById(widget.bookingData['serviceId']);
+  }
+
+  // In BookingConfirmationScreen.dart
+  Future<void> _confirmBooking() async {
+    setState(() => _isProcessing = true);
+    try {
+      // ✅ Remove customerId completely - backend gets it from token
+      final bookingData = {
+        'serviceId': widget.bookingData['serviceId'],
+        'slotId': widget.bookingData['slotId'],
+        if (widget.bookingData['notes'] != null)
+          'notes': widget.bookingData['notes'],
+      };
+
+      await _bookingService.createBooking(bookingData);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Booking confirmed!')),
+      );
+      RouteHelper.pushReplacementNamed(context, RouteHelper.main);
+    } catch (e) {
+      setState(() => _error = e.toString());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Booking failed: $_error')),
+      );
+    } finally {
+      setState(() => _isProcessing = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.all(AppConstants.defaultPadding),
-          child: Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      // Success Icon
-                      Container(
-                        margin: EdgeInsets.only(top: 40, bottom: 24),
-                        width: 120,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          color: Constants.successColor.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.check_circle,
-                          size: 60,
-                          color: Constants.successColor,
-                        ),
-                      ),
-
-                      // Success Message
-                      Text(
-                        'Booking Confirmed!',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Constants.primaryColor,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        'Your service has been successfully booked. You will receive a confirmation notification.',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[600],
-                          height: 1.5,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      SizedBox(height: 40),
-
-                      // Booking Details Card
-                      Card(
-                        elevation: 3,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                              AppConstants.defaultBorderRadius),
-                        ),
-                        child: Padding(
-                          padding: EdgeInsets.all(20),
-                          child: Column(
-                            children: [
-                              Text(
-                                'Booking Details',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              SizedBox(height: 20),
-                              _buildDetailItem(
-                                icon: Icons.construction,
-                                label: 'Service',
-                                value: booking.serviceTitle,
-                              ),
-                              _buildDetailItem(
-                                icon: Icons.person,
-                                label: 'Provider',
-                                value: booking.providerName,
-                              ),
-                              _buildDetailItem(
-                                icon: Icons.calendar_today,
-                                label: 'Date',
-                                value: booking.formattedDate,
-                              ),
-                              _buildDetailItem(
-                                icon: Icons.schedule,
-                                label: 'Time',
-                                value: booking.timeSlot,
-                              ),
-                              _buildDetailItem(
-                                icon: Icons.attach_money,
-                                label: 'Amount',
-                                value: booking.formattedAmount,
-                                isAmount: true,
-                              ),
-                              SizedBox(height: 16),
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: booking.statusColor.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  booking.statusText.toUpperCase(),
-                                  style: TextStyle(
-                                    color: booking.statusColor,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 24),
-
-                      // Next Steps
-                      Card(
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                              AppConstants.defaultBorderRadius),
-                        ),
-                        child: Padding(
-                          padding: EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'What happens next?',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              SizedBox(height: 16),
-                              _buildNextStep(
-                                number: 1,
-                                text: 'You will receive a confirmation message',
-                              ),
-                              _buildNextStep(
-                                number: 2,
-                                text: 'The service provider will contact you',
-                              ),
-                              _buildNextStep(
-                                number: 3,
-                                text:
-                                    'Service will be provided at the scheduled time',
-                              ),
-                              _buildNextStep(
-                                number: 4,
-                                text: 'You can track your booking in the app',
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+      appBar: AppBar(
+        title: const Text('Confirm Booking'),
+        backgroundColor: AppColors.primary,
+      ),
+      body: FutureBuilder<ServiceModel>(
+        future: _serviceFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+          final service = snapshot.data!;
+          return SingleChildScrollView(
+            padding: EdgeInsets.all(AppConstants.defaultPadding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Booking Summary',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
-              ),
-
-              // Action Buttons
-              Column(
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        // Navigate to bookings screen
-                        Navigator.pushNamedAndRemoveUntil(
-                          context,
-                          '/home',
-                          (route) => false,
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Constants.primaryColor,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                              AppConstants.defaultBorderRadius),
-                        ),
-                      ),
-                      child: Text(
-                        'Go to Home',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                const SizedBox(height: 24),
+                _buildSummaryCard(
+                  title: 'Service',
+                  content: service.name,
+                  icon: Icons.build,
+                ),
+                const SizedBox(height: 16),
+                _buildSummaryCard(
+                  title: 'Provider',
+                  content: service.providerName,
+                  icon: Icons.person,
+                ),
+                const SizedBox(height: 16),
+                _buildSummaryCard(
+                  title: 'Price',
+                  content: '\$${service.price.toStringAsFixed(2)}',
+                  icon: Icons.attach_money,
+                  color: AppColors.secondary,
+                ),
+                const SizedBox(height: 16),
+                _buildSummaryCard(
+                  title: 'Time Slot',
+                  content: _getSlotDisplay(),
+                  icon: Icons.access_time,
+                ),
+                if (widget.bookingData['notes'] != null &&
+                    widget.bookingData['notes'].isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _buildSummaryCard(
+                    title: 'Notes',
+                    content: widget.bookingData['notes'],
+                    icon: Icons.note,
+                  ),
+                ],
+                const SizedBox(height: 32),
+                if (_error != null)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red, width: 1),
+                    ),
+                    child: Text(
+                      'Error: $_error',
+                      style: const TextStyle(color: Colors.red),
                     ),
                   ),
-                  SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: OutlinedButton(
-                      onPressed: () {
-                        // Navigate to bookings screen
-                        Navigator.pushNamedAndRemoveUntil(
-                          context,
-                          '/home',
-                          (route) => false,
-                        );
-                        // Then navigate to bookings
-                        Future.delayed(Duration(milliseconds: 100), () {
-                          // This would navigate to bookings screen
-                          // Navigator.push(context, MaterialPageRoute(builder: (context) => BookingsScreen()));
-                        });
-                      },
-                      style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                              AppConstants.defaultBorderRadius),
-                        ),
-                        side: BorderSide(color: Constants.primaryColor),
-                      ),
-                      child: Text(
-                        'View My Bookings',
-                        style: TextStyle(
-                          color: Constants.primaryColor,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isProcessing ? null : _confirmBooking,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryLight,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: _isProcessing
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child:
+                                CircularProgressIndicator(color: Colors.white),
+                          )
+                        : const Text('Confirm & Pay'),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard({
+    required String title,
+    required String content,
+    required IconData icon,
+    Color? color,
+  }) {
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppConstants.defaultBorderRadius),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: (color ?? AppColors.primary).withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                color: color ?? AppColors.primary,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                  Text(
+                    content,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildDetailItem({
-    required IconData icon,
-    required String label,
-    required String value,
-    bool isAmount = false,
-  }) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: Constants.primaryColor),
-          SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[700],
-              ),
-            ),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: isAmount ? FontWeight.bold : FontWeight.normal,
-              color: isAmount ? Constants.primaryColor : Colors.black,
-              fontSize: isAmount ? 16 : 14,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNextStep({required int number, required String text}) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              color: Constants.primaryColor,
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                number.toString(),
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                color: Colors.grey[700],
-                height: 1.4,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+  String _getSlotDisplay() {
+    // You can enhance this if your slot object has more data
+    return 'Selected slot';
   }
 }

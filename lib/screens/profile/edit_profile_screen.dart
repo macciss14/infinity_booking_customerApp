@@ -1,271 +1,97 @@
+// screens/profile/edit_profile_screen.dart
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:mobile_app/services/auth_service.dart';
-import 'package:mobile_app/utils/constants.dart';
-import '../../services/image_picker_service.dart';
+import '../../services/auth_service.dart';
 import '../../models/user_model.dart';
+import '../../utils/validators.dart';
+import '../../utils/constants.dart';
 
 class EditProfileScreen extends StatefulWidget {
+  const EditProfileScreen({super.key});
+
   @override
-  _EditProfileScreenState createState() => _EditProfileScreenState();
+  State<EditProfileScreen> createState() => _EditProfileScreenState();
 }
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _fullNameController = TextEditingController();
+  final AuthService _authService = AuthService();
+  final ImagePicker _imagePicker = ImagePicker();
+
+  // Profile Form
+  final _profileFormKey = GlobalKey<FormState>();
+  final _fullnameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+
+  // Password Form
+  final _passwordFormKey = GlobalKey<FormState>();
+  final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
-  final _confirmNewPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  bool _obscureCurrentPassword = true;
+  bool _obscureNewPassword = true;
+  bool _obscureConfirmPassword = true;
 
-  bool _isObscureCurrentPassword = true;
-  bool _isObscureNewPassword = true;
-  bool _isObscureConfirmNewPassword = true;
+  // State
+  UserModel? _user;
   bool _isLoading = false;
-  bool _isUploading = false;
+  bool _isUpdatingProfile = false;
+  bool _isChangingPassword = false;
+  bool _isUploadingPhoto = false;
+  bool _showPasswordFields = false;
 
-  User? _currentUser;
-  Uint8List? _selectedImageBytes;
+  // Image handling for both web and mobile
+  dynamic _selectedImage; // Can be File (mobile) or Uint8List (web)
+  String? _selectedImageBase64; // For web preview
 
   @override
   void initState() {
     super.initState();
-    _loadUserProfile();
+    _loadUserData();
   }
 
-  Future<void> _loadUserProfile() async {
+  @override
+  void dispose() {
+    _fullnameController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadUserData() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      print('🔄 EditProfileScreen - Starting profile load...');
-      final result = await AuthService.getProfileWithFallback();
-      if (result['success'] && result['user'] != null) {
+      final user = await _authService.fetchUserProfile();
+      if (mounted) {
         setState(() {
-          _currentUser = result['user'];
-          _fullNameController.text = _currentUser!.fullName;
-          _emailController.text = _currentUser!.email;
-          _phoneController.text = _currentUser!.phone;
-          _addressController.text = _currentUser!.address;
+          _user = user;
+          _fullnameController.text = user.fullname;
+          _phoneController.text = user.phonenumber;
+          _addressController.text = user.address ?? '';
         });
-        print('📥 EditProfileScreen - Loaded user data:');
-        print('   - Full Name: ${_currentUser!.fullName}');
-        print('   - Email: ${_currentUser!.email}');
-        print('   - Phone: "${_currentUser!.phone}"');
-        print('   - Address: "${_currentUser!.address}"');
-        print('   - User ID: ${_currentUser!.id}');
-        print(
-          '   - Profile Photo: ${_currentUser!.profilePhoto != null && _currentUser!.profilePhoto!.isNotEmpty ? "Set" : "Not set"}',
-        );
-      } else {
-        print('❌ EditProfileScreen - No user data found: ${result['message']}');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message'] ?? 'Failed to load profile'),
-            backgroundColor: Colors.red,
-          ),
-        );
       }
     } catch (e) {
-      print('💥 EditProfileScreen - Error loading user profile: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error loading profile: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _updateProfile() async {
-    if (_formKey.currentState!.validate()) {
-      if (_currentUser != null) {
-        setState(() {
-          _isLoading = true;
-        });
-
-        try {
-          Map<String, dynamic> updateData = {};
-
-          // Only include changed fields
-          if (_fullNameController.text != _currentUser?.fullName) {
-            updateData['fullname'] = _fullNameController.text;
-            print('✅ Full name changed: "${_fullNameController.text}"');
-          }
-          if (_phoneController.text != _currentUser?.phone) {
-            updateData['phonenumber'] = _phoneController.text;
-            print('✅ Phone changed: "${_phoneController.text}"');
-          }
-          if (_addressController.text != _currentUser?.address) {
-            updateData['address'] = _addressController.text;
-            print('✅ Address changed: "${_addressController.text}"');
-          }
-
-          // Upload profile photo if a new one was selected
-          if (_selectedImageBytes != null) {
-            print('📸 Uploading new profile photo...');
-            final fileName =
-                'profile_${_currentUser!.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-
-            final uploadResult = await AuthService.uploadProfilePhoto(
-              _selectedImageBytes!,
-              fileName,
-            );
-
-            if (uploadResult['success']) {
-              print('✅ Profile photo uploaded successfully');
-              if (uploadResult['user'] != null) {
-                setState(() {
-                  _currentUser = uploadResult['user'];
-                });
-              }
-            } else {
-              print(
-                  '❌ Profile photo upload failed: ${uploadResult['message']}');
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                      'Profile updated but photo upload failed: ${uploadResult['message']}'),
-                  backgroundColor: Colors.orange,
-                ),
-              );
-            }
-          }
-
-          // Only proceed with profile update if there are changes
-          if (updateData.isNotEmpty || _selectedImageBytes != null) {
-            if (updateData.isNotEmpty) {
-              print('🚀 Sending profile update with data: $updateData');
-              print('🔑 User ID: ${_currentUser!.id}');
-
-              final result = await AuthService.updateProfile(updateData);
-
-              if (result['success']) {
-                print('✅ Profile update successful');
-
-                // Update the current user object with the new data
-                if (result['user'] != null) {
-                  setState(() {
-                    _currentUser = result['user'];
-                  });
-                }
-              } else {
-                print('❌ Profile update failed: ${result['message']}');
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      result['message'] ?? 'Failed to update profile.',
-                    ),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-                return;
-              }
-            }
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content:
-                    Text(_selectedImageBytes != null && updateData.isNotEmpty
-                        ? 'Profile and photo updated successfully!'
-                        : _selectedImageBytes != null
-                            ? 'Profile photo updated successfully!'
-                            : 'Profile updated successfully!'),
-                backgroundColor: Colors.green,
-              ),
-            );
-            Navigator.pop(context);
-          } else {
-            print('ℹ️ No changes detected to save');
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('No changes to save.'),
-                backgroundColor: Colors.orange,
-              ),
-            );
-            Navigator.pop(context);
-          }
-        } catch (e) {
-          print('💥 Error updating profile: $e');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('An error occurred while updating the profile: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        } finally {
-          setState(() {
-            _isLoading = false;
-            _selectedImageBytes = null;
-          });
-        }
-      } else {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('User data not available. Cannot update profile.'),
+            content: Text('Failed to load profile: ${e.toString()}'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
           ),
         );
       }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please fix the validation errors.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-    }
-  }
-
-  Future<void> _changePassword() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
-
-      try {
-        final result = await AuthService.changePassword(
-          _passwordController.text,
-          _newPasswordController.text,
-        );
-
-        if (result['success']) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                result['message'] ?? 'Password changed successfully!',
-              ),
-              backgroundColor: Colors.green,
-            ),
-          );
-          _passwordController.clear();
-          _newPasswordController.clear();
-          _confirmNewPasswordController.clear();
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message'] ?? 'Failed to change password.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('An error occurred while changing the password.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      } finally {
+    } finally {
+      if (mounted) {
         setState(() {
           _isLoading = false;
         });
@@ -273,432 +99,511 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  Future<void> _uploadProfilePhoto() async {
+  Future<void> _pickImage() async {
     try {
-      print('📸 EditProfileScreen - Starting photo selection...');
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+        maxWidth: 800,
+        maxHeight: 800,
+      );
 
-      Uint8List? imageBytes;
+      if (image != null) {
+        if (kIsWeb) {
+          // For Web: Read as bytes and convert to base64 for preview
+          final bytes = await image.readAsBytes();
+          setState(() {
+            _selectedImage = bytes;
+            _selectedImageBase64 =
+                'data:image/jpeg;base64,${base64Encode(bytes)}';
+          });
 
-      if (kIsWeb) {
-        print('🌐 Web platform detected, using web image picker...');
-        imageBytes = await ImagePickerService.pickImageWeb();
-      } else {
-        print('📱 Mobile platform detected, using standard image picker...');
-        imageBytes = await ImagePickerService.pickImageAsBytes();
+          // Upload immediately
+          await _uploadImage(bytes);
+        } else {
+          // For Mobile: Use File
+          final imageFile = File(image.path);
+          setState(() {
+            _selectedImage = imageFile;
+          });
+
+          // Upload immediately
+          await _uploadImage(imageFile);
+        }
       }
-
-      if (imageBytes != null && imageBytes.isNotEmpty) {
-        setState(() {
-          _selectedImageBytes = imageBytes;
-          _isUploading = true;
-        });
-
-        print('✅ Photo selected, bytes length: ${imageBytes.length}');
-
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Photo selected. Click "Save Changes" to update.'),
-            backgroundColor: Colors.blue,
-            duration: Duration(seconds: 2),
+            content: Text('Failed to pick image: ${e.toString()}'),
+            backgroundColor: Colors.red,
           ),
         );
-      } else {
-        print('❌ No image selected or image bytes are empty');
+      }
+    }
+  }
+
+  Future<void> _uploadImage(dynamic imageSource) async {
+    setState(() {
+      _isUploadingPhoto = true;
+    });
+
+    try {
+      final updatedUser = await _authService.uploadProfileImage(imageSource);
+
+      if (mounted) {
+        setState(() {
+          _user = updatedUser;
+          _selectedImage = null;
+          _selectedImageBase64 = null;
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('No image selected or image is invalid'),
-            backgroundColor: Colors.red,
+          const SnackBar(
+            content: Text('Profile picture updated successfully!'),
+            backgroundColor: Colors.green,
             duration: Duration(seconds: 2),
           ),
         );
       }
     } catch (e) {
-      print('💥 EditProfileScreen - Error selecting photo: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error selecting photo: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to upload image: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
-      setState(() {
-        _isUploading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isUploadingPhoto = false;
+        });
+      }
     }
   }
 
-  Widget _buildProfileAvatar() {
-    final profilePhotoUrl = _currentUser?.getProfilePhotoUrl();
+  Future<void> _updateProfileDetails() async {
+    if (!_profileFormKey.currentState!.validate()) {
+      return;
+    }
 
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        Container(
-          width: 120,
-          height: 120,
-          child: Stack(
-            children: [
-              if (_isUploading)
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    ),
-                  ),
-                ),
+    setState(() {
+      _isUpdatingProfile = true;
+    });
 
-              // Show selected image if available, otherwise show current profile photo
-              if (_selectedImageBytes != null)
-                CircleAvatar(
-                  radius: 60,
-                  backgroundImage: MemoryImage(_selectedImageBytes!),
-                  backgroundColor: Colors.grey[300],
-                )
-              else if (profilePhotoUrl != null && profilePhotoUrl.isNotEmpty)
-                CircleAvatar(
-                  radius: 60,
-                  backgroundImage: NetworkImage(profilePhotoUrl),
-                  backgroundColor: Colors.grey[300],
-                )
-              else
-                CircleAvatar(
-                  radius: 60,
-                  backgroundColor: Colors.grey[300],
-                  child: Icon(Icons.person, size: 50, color: Colors.grey[600]),
-                ),
-            ],
-          ),
-        ),
-        Positioned(
-          bottom: 0,
-          right: 0,
-          child: Container(
-            decoration: BoxDecoration(
-              color: Constants.primaryColor,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 4,
-                  offset: Offset(0, 2),
-                ),
-              ],
+    try {
+      // Check if any field actually changed
+      bool hasChanges = false;
+
+      if (_fullnameController.text.trim() != _user?.fullname) {
+        hasChanges = true;
+      }
+      if (_phoneController.text.trim() != _user?.phonenumber) {
+        hasChanges = true;
+      }
+      if (_addressController.text.trim() != (_user?.address ?? '')) {
+        hasChanges = true;
+      }
+
+      if (!hasChanges) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No changes detected'),
+              duration: Duration(seconds: 2),
             ),
-            child: IconButton(
-              icon: Icon(Icons.camera_alt, color: Colors.white, size: 20),
-              onPressed: _isUploading ? null : _uploadProfilePhoto,
-            ),
+          );
+        }
+        return;
+      }
+
+      final updatedUser = await _authService.updateProfile(
+        fullname: _fullnameController.text.trim(),
+        phonenumber: _phoneController.text.trim(),
+        address: _addressController.text.trim(),
+      );
+
+      if (mounted) {
+        setState(() {
+          _user = updatedUser;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile updated successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
           ),
-        ),
-      ],
-    );
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update profile: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdatingProfile = false;
+        });
+      }
+    }
+  }
+
+  void _togglePasswordFields() {
+    setState(() {
+      _showPasswordFields = !_showPasswordFields;
+      if (!_showPasswordFields) {
+        _currentPasswordController.clear();
+        _newPasswordController.clear();
+        _confirmPasswordController.clear();
+        _passwordFormKey.currentState?.reset();
+      }
+    });
+  }
+
+  Future<void> _changePassword() async {
+    if (!_passwordFormKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isChangingPassword = true;
+    });
+
+    try {
+      await _authService.changePassword(
+        currentPassword: _currentPasswordController.text.trim(),
+        newPassword: _newPasswordController.text.trim(),
+      );
+
+      if (mounted) {
+        _currentPasswordController.clear();
+        _newPasswordController.clear();
+        _confirmPasswordController.clear();
+        _showPasswordFields = false;
+        _passwordFormKey.currentState?.reset();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password changed successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to change password: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isChangingPassword = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading && _currentUser == null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: Text('Edit Profile'),
-          backgroundColor: Constants.primaryColor,
-          foregroundColor: Colors.white,
-        ),
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (_currentUser == null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: Text('Edit Profile'),
-          backgroundColor: Constants.primaryColor,
-          foregroundColor: Colors.white,
-        ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.error_outline, size: 64, color: Colors.orange),
-              SizedBox(height: 16),
-              Text(
-                'Error loading profile data',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 8),
-              Text('Please try again later'),
-              SizedBox(height: 20),
-              ElevatedButton(onPressed: _loadUserProfile, child: Text('Retry')),
-            ],
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(
-        title: Text('Edit Profile'),
-        backgroundColor: Constants.primaryColor,
-        foregroundColor: Colors.white,
-      ),
-      body: Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            children: [
-              // Profile Picture Section
-              Center(
-                child: Column(
-                  children: [
-                    _buildProfileAvatar(),
-                    SizedBox(height: 10),
-                    Text(
-                      _selectedImageBytes != null
-                          ? 'New photo selected'
-                          : 'Profile photo',
-                      style: TextStyle(
-                        color: _selectedImageBytes != null
-                            ? Constants.primaryColor
-                            : Colors.grey[600],
-                        fontSize: 12,
-                        fontWeight: _selectedImageBytes != null
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
-                    ),
-                    if (_selectedImageBytes != null)
-                      Text(
-                        'Click "Save Changes" to update',
-                        style: TextStyle(
-                          color: Colors.orange,
-                          fontSize: 10,
-                        ),
-                      ),
-                  ],
+        title: const Text('Edit Profile'),
+        actions: [
+          if (_isUpdatingProfile || _isUploadingPhoto)
+            Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Theme.of(context).colorScheme.onPrimary,
                 ),
               ),
-              SizedBox(height: 30),
+            ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _user == null
+              ? _buildErrorScreen()
+              : _buildContent(),
+    );
+  }
 
-              // Personal Information Section
-              Text(
-                'Personal Information',
+  Widget _buildContent() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        children: [
+          _buildProfilePictureSection(),
+          const SizedBox(height: 24),
+          _buildProfileForm(),
+          const SizedBox(height: 32),
+          _buildPasswordSection(),
+          const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfilePictureSection() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          children: [
+            Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.grey[300]!,
+                      width: 2,
+                    ),
+                  ),
+                  child: ClipOval(
+                    child: _buildProfileImage(),
+                  ),
+                ),
+                if (!_isUploadingPhoto)
+                  GestureDetector(
+                    onTap: _pickImage,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 3,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.camera_alt,
+                        size: 20,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _isUploadingPhoto ? 'Uploading...' : 'Tap to change photo',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // In EditProfileScreen, update the _buildProfileImage method:
+
+  // In EditProfileScreen, update the _buildProfileImage method:
+
+  Widget _buildProfileImage() {
+    if (_isUploadingPhoto) {
+      return Container(
+        color: Colors.grey[100],
+        child: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    // Show selected image first (for preview)
+    if (_selectedImage != null) {
+      if (kIsWeb && _selectedImage is Uint8List) {
+        return Image.memory(
+          _selectedImage as Uint8List,
+          fit: BoxFit.cover,
+          width: 120,
+          height: 120,
+        );
+      } else if (!kIsWeb && _selectedImage is File) {
+        return Image.file(
+          _selectedImage as File,
+          fit: BoxFit.cover,
+          width: 120,
+          height: 120,
+        );
+      }
+    }
+
+    // Show backend image if available
+    if (_user?.profilephoto != null && _user!.profilephoto!.isNotEmpty) {
+      String imageUrl = _user!.profilephoto!;
+
+      // Debug print
+      print('Profile photo URL: $imageUrl');
+
+      // Check if it's already a full URL
+      if (imageUrl.startsWith('http')) {
+        return Image.network(
+          imageUrl,
+          fit: BoxFit.cover,
+          width: 120,
+          height: 120,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            print('Image network error: $error');
+            return const Icon(
+              Icons.person,
+              size: 60,
+              color: Colors.grey,
+            );
+          },
+        );
+      }
+    }
+
+    return const Icon(
+      Icons.person,
+      size: 60,
+      color: Colors.grey,
+    );
+  }
+
+  Widget _buildProfileForm() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Form(
+          key: _profileFormKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Profile Details',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Theme.of(context).primaryColor,
+                  color: Colors.black87,
                 ),
               ),
-              SizedBox(height: 16),
-
+              const SizedBox(height: 16),
               TextFormField(
-                controller: _fullNameController,
-                decoration: InputDecoration(
+                controller: _fullnameController,
+                decoration: const InputDecoration(
                   labelText: 'Full Name',
+                  prefixIcon: Icon(Icons.person_outline),
                   border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
+                  hintText: 'Enter your full name',
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your full name';
-                  }
-                  return null;
-                },
+                keyboardType: TextInputType.name,
+                textInputAction: TextInputAction.next,
+                validator: Validators.validateName,
               ),
-              SizedBox(height: 16),
-
+              const SizedBox(height: 16),
               TextFormField(
-                controller: _emailController,
+                initialValue: _user?.email,
                 decoration: InputDecoration(
                   labelText: 'Email',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.email),
+                  prefixIcon: const Icon(Icons.email_outlined),
+                  border: const OutlineInputBorder(),
                   filled: true,
                   fillColor: Colors.grey[100],
                 ),
                 enabled: false,
-                style: TextStyle(color: Colors.grey[600]),
               ),
-              SizedBox(height: 16),
-
+              const SizedBox(height: 16),
               TextFormField(
                 controller: _phoneController,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: 'Phone Number',
+                  prefixIcon: Icon(Icons.phone_outlined),
                   border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.phone),
+                  hintText: 'Enter your phone number',
                 ),
                 keyboardType: TextInputType.phone,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your phone number';
-                  }
-                  return null;
-                },
+                textInputAction: TextInputAction.next,
+                validator: Validators.validatePhone,
               ),
-              SizedBox(height: 16),
-
+              const SizedBox(height: 16),
               TextFormField(
                 controller: _addressController,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: 'Address',
+                  prefixIcon: Icon(Icons.location_on_outlined),
                   border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.home),
+                  hintText: 'Enter your address',
                 ),
-                maxLines: 2,
+                maxLines: 3,
+                textInputAction: TextInputAction.done,
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your address';
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Address is required';
                   }
                   return null;
                 },
               ),
-              SizedBox(height: 30),
-
-              // Save Changes Button
-              ElevatedButton(
-                onPressed: _isLoading ? null : _updateProfile,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Constants.primaryColor,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: _isLoading
-                    ? SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white,
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isUpdatingProfile ? null : _updateProfileDetails,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: _isUpdatingProfile
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
+                        )
+                      : const Text(
+                          'Update Profile',
+                          style: TextStyle(fontSize: 16),
                         ),
-                      )
-                    : Text(
-                        'Save Changes',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-              ),
-              SizedBox(height: 30),
-
-              // Change Password Section
-              Divider(),
-              SizedBox(height: 10),
-              Text(
-                'Change Password',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).primaryColor,
                 ),
               ),
-              SizedBox(height: 16),
-
-              TextFormField(
-                controller: _passwordController,
-                decoration: InputDecoration(
-                  labelText: 'Current Password',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _isObscureCurrentPassword
-                          ? Icons.visibility
-                          : Icons.visibility_off,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _isObscureCurrentPassword = !_isObscureCurrentPassword;
-                      });
-                    },
-                  ),
-                ),
-                obscureText: _isObscureCurrentPassword,
-              ),
-              SizedBox(height: 16),
-
-              TextFormField(
-                controller: _newPasswordController,
-                decoration: InputDecoration(
-                  labelText: 'New Password',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock_outline),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _isObscureNewPassword
-                          ? Icons.visibility
-                          : Icons.visibility_off,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _isObscureNewPassword = !_isObscureNewPassword;
-                      });
-                    },
-                  ),
-                ),
-                obscureText: _isObscureNewPassword,
-                validator: (value) {
-                  if (value != null && value.isNotEmpty && value.length < 8) {
-                    return 'Password must be at least 8 characters';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16),
-
-              TextFormField(
-                controller: _confirmNewPasswordController,
-                decoration: InputDecoration(
-                  labelText: 'Confirm New Password',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock_outline),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _isObscureConfirmNewPassword
-                          ? Icons.visibility
-                          : Icons.visibility_off,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _isObscureConfirmNewPassword =
-                            !_isObscureConfirmNewPassword;
-                      });
-                    },
-                  ),
-                ),
-                obscureText: _isObscureConfirmNewPassword,
-                validator: (value) {
-                  if (value != null &&
-                      value.isNotEmpty &&
-                      value != _newPasswordController.text) {
-                    return 'Passwords do not match';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 20),
-
-              ElevatedButton(
-                onPressed: _isLoading ? null : _changePassword,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: Text(
-                  'Change Password',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-              ),
-              SizedBox(height: 20),
             ],
           ),
         ),
@@ -706,15 +611,204 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  @override
-  void dispose() {
-    _fullNameController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
-    _addressController.dispose();
-    _passwordController.dispose();
-    _newPasswordController.dispose();
-    _confirmNewPasswordController.dispose();
-    super.dispose();
+  Widget _buildPasswordSection() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Change Password',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: _togglePasswordFields,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _showPasswordFields
+                        ? Colors.grey[300]
+                        : Theme.of(context).primaryColor,
+                    foregroundColor:
+                        _showPasswordFields ? Colors.black87 : Colors.white,
+                  ),
+                  child: Text(
+                    _showPasswordFields ? 'Cancel' : 'Change Password',
+                  ),
+                ),
+              ],
+            ),
+            if (_showPasswordFields) ...[
+              const SizedBox(height: 16),
+              Form(
+                key: _passwordFormKey,
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _currentPasswordController,
+                      decoration: InputDecoration(
+                        labelText: 'Current Password',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscureCurrentPassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _obscureCurrentPassword =
+                                  !_obscureCurrentPassword;
+                            });
+                          },
+                        ),
+                      ),
+                      obscureText: _obscureCurrentPassword,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Current password is required';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _newPasswordController,
+                      decoration: InputDecoration(
+                        labelText: 'New Password',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscureNewPassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _obscureNewPassword = !_obscureNewPassword;
+                            });
+                          },
+                        ),
+                      ),
+                      obscureText: _obscureNewPassword,
+                      validator: Validators.validatePassword,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _confirmPasswordController,
+                      decoration: InputDecoration(
+                        labelText: 'Confirm New Password',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscureConfirmPassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _obscureConfirmPassword =
+                                  !_obscureConfirmPassword;
+                            });
+                          },
+                        ),
+                      ),
+                      obscureText: _obscureConfirmPassword,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please confirm your password';
+                        }
+                        if (value != _newPasswordController.text) {
+                          return 'Passwords do not match';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isChangingPassword ? null : _changePassword,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: _isChangingPassword
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white),
+                                ),
+                              )
+                            : const Text(
+                                'Update Password',
+                                style: TextStyle(fontSize: 16),
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorScreen() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Colors.red[400],
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Failed to load profile',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Please try again or contact support',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _loadUserData,
+              child: const Text('Try Again'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

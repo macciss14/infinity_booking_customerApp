@@ -1,88 +1,68 @@
 import 'dart:io';
-import 'dart:typed_data';
+import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ImagePickerService {
-  static final ImagePicker _picker = ImagePicker();
+  final ImagePicker _imagePicker = ImagePicker();
 
-  static Future<dynamic> pickImage() async {
+  Future<File?> pickImage(ImageSource source) async {
     try {
-      print('📸 Opening image picker...');
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.gallery,
+      final XFile? image = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 80,
         maxWidth: 800,
         maxHeight: 800,
-        imageQuality: 80,
       );
 
       if (image != null) {
-        print('✅ Image selected: ${image.path}');
-        print('📁 File name: ${image.name}');
-
-        if (kIsWeb) {
-          // For web, return the XFile directly
-          return image;
-        } else {
-          // For mobile, return File
-          return File(image.path);
-        }
-      } else {
-        print('❌ No image selected');
-        return null;
+        return File(image.path);
       }
-    } catch (e) {
-      print('💥 Error picking image: $e');
       return null;
+    } catch (e) {
+      throw Exception('Failed to pick image: ${e.toString()}');
     }
   }
 
-  // Web-compatible method that returns image bytes
-  static Future<Uint8List?> pickImageAsBytes() async {
+  Future<List<File>> pickMultipleImages() async {
     try {
-      print('📸 Opening image picker for bytes...');
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.gallery,
+      final List<XFile>? images = await _imagePicker.pickMultiImage(
+        imageQuality: 80,
         maxWidth: 800,
         maxHeight: 800,
-        imageQuality: 80,
       );
 
-      if (image != null) {
-        print('✅ Image selected, reading as bytes...');
-        final bytes = await image.readAsBytes();
-        print('📊 Bytes length: ${bytes.length}');
-        return bytes;
-      } else {
-        print('❌ No image selected');
-        return null;
+      if (images != null) {
+        return images.map((image) => File(image.path)).toList();
       }
+      return [];
     } catch (e) {
-      print('💥 Error picking image as bytes: $e');
-      return null;
+      throw Exception('Failed to pick images: ${e.toString()}');
     }
   }
 
-  // Alternative method specifically for web
-  static Future<Uint8List?> pickImageWeb() async {
+  Future<String?> uploadProfileImage(File imageFile) async {
     try {
-      print('🌐 Web: Opening image picker...');
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 80,
-      );
-
-      if (image != null) {
-        print('🌐 Web: Image selected, reading bytes...');
-        final bytes = await image.readAsBytes();
-        return bytes;
-      }
-      return null;
+      // Convert file to base64 or use multipart upload
+      // For now, we'll return a placeholder
+      // In real implementation, you would upload to your server
+      await Future.delayed(const Duration(seconds: 2)); // Simulate upload
+      return 'https://example.com/profile-image.jpg';
     } catch (e) {
-      print('💥 Web: Error picking image: $e');
-      return null;
+      throw Exception('Failed to upload image: ${e.toString()}');
+    }
+  }
+
+  Future<String?> uploadImage(File imageFile) async {
+    try {
+      // Implementation for general image upload
+      // This would typically use multipart/form-data
+      final bytes = await imageFile.readAsBytes();
+      final base64Image = base64Encode(bytes);
+
+      // Placeholder - replace with actual upload logic
+      return 'data:image/jpeg;base64,$base64Image';
+    } catch (e) {
+      throw Exception('Failed to upload image: ${e.toString()}');
     }
   }
 }

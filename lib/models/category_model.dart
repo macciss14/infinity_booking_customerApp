@@ -1,76 +1,23 @@
-class Category {
+// lib/models/category_model.dart
+class CategoryModel {
   final String id;
   final String name;
-  final String description;
-  final String? icon;
-  final String? image;
-  final int serviceCount;
-  final bool isActive;
-  final List<Category>? subcategories;
-  final DateTime createdAt;
+  final String? imageUrl;
+  final int? serviceCount;
 
-  Category({
+  CategoryModel({
     required this.id,
     required this.name,
-    required this.description,
-    this.icon,
-    this.image,
-    this.serviceCount = 0,
-    this.isActive = true,
-    this.subcategories,
-    required this.createdAt,
+    this.imageUrl,
+    this.serviceCount,
   });
 
-  factory Category.fromJson(Map<String, dynamic> json) {
-    // Handle different JSON structures
-    final id = json['_id']?.toString() ?? json['id']?.toString() ?? '';
-    final name = json['name']?.toString() ?? '';
-    final description = json['description']?.toString() ?? '';
-
-    // Handle service count - could be from different fields
-    int serviceCount = 0;
-    if (json['serviceCount'] != null) {
-      serviceCount = json['serviceCount'] is int
-          ? json['serviceCount']
-          : int.tryParse(json['serviceCount'].toString()) ?? 0;
-    } else if (json['servicesCount'] != null) {
-      serviceCount = json['servicesCount'] is int
-          ? json['servicesCount']
-          : int.tryParse(json['servicesCount'].toString()) ?? 0;
-    }
-
-    // Handle subcategories
-    List<Category>? subcategories;
-    if (json['subcategories'] is List) {
-      subcategories = (json['subcategories'] as List)
-          .map((e) => Category.fromJson(e))
-          .toList();
-    }
-
-    return Category(
-      id: id,
-      name: name,
-      description: description,
-      icon: json['icon']?.toString(),
-      image: json['image']?.toString(),
-      serviceCount: serviceCount,
-      isActive: json['isActive'] ?? true,
-      subcategories: subcategories,
-      createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toString()),
+  factory CategoryModel.fromJson(Map<String, dynamic> json) {
+    return CategoryModel(
+      id: json['id'] ?? '',
+      name: json['name'] ?? '',
+      imageUrl: json['imageUrl'],
+      serviceCount: json['serviceCount'] is int ? json['serviceCount'] : null,
     );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'description': description,
-      'icon': icon,
-      'image': image,
-      'serviceCount': serviceCount,
-      'isActive': isActive,
-      'subcategories': subcategories?.map((e) => e.toJson()).toList(),
-      'createdAt': createdAt.toIso8601String(),
-    };
   }
 }
