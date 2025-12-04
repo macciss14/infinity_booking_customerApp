@@ -1,8 +1,9 @@
+// lib/screens/main/profile_screen.dart
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../../models/user_model.dart';
 import '../../config/route_helper.dart';
-import '../../utils/constants.dart'; // Add this import
+import '../../utils/constants.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -30,19 +31,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     try {
-      // Always fetch fresh data from backend
       final user = await _authService.fetchUserProfile();
       setState(() {
         _userFuture = Future.value(user);
       });
     } catch (e) {
-      // If fetch fails, try to get cached user
       final cachedUser = await _authService.getCurrentUser();
       setState(() {
         _userFuture = Future.value(cachedUser);
       });
 
-      // Show error snackbar only if we have no cached data
       if (cachedUser == null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -60,6 +58,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // lib/screens/main/profile_screen.dart
+
   Future<void> _logout() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -68,30 +68,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
         content: const Text('Are you sure you want to logout?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Logout'),
-          ),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Logout')),
         ],
       ),
     );
 
-    if (confirmed == true) {
+    if (confirmed == true && mounted) {
       try {
+        // ✅ 1. Call logout (no context)
         await _authService.logout();
-        if (mounted) {
-          RouteHelper.pushAndRemoveUntil(context, RouteHelper.initial);
-        }
+
+        // ✅ 2. THEN navigate (UI handles this)
+        RouteHelper.pushAndRemoveUntil(context, RouteHelper.initial);
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Logout failed: ${e.toString()}'),
-              backgroundColor: Colors.red,
-            ),
+                content: Text('Logout failed: $e'),
+                backgroundColor: Colors.red),
           );
         }
       }
@@ -101,16 +99,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
-            tooltip: 'Logout',
-          ),
-        ],
-      ),
       body: RefreshIndicator(
         onRefresh: () => _loadUserData(showRefreshIndicator: true),
         child: SingleChildScrollView(
@@ -139,6 +127,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
               const SizedBox(height: 24),
               _buildMenuSection(),
+              const SizedBox(height: 24),
+              // ✅ MANDATORY LOGOUT BUTTON WITH TEXT
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _logout,
+                  icon: const Icon(Icons.logout, color: Colors.red),
+                  label: const Text(
+                    'Logout',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.red),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
               const SizedBox(height: 32),
             ],
           ),
@@ -238,7 +250,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 8),
             ],
-            // Member since
             if (user.createdAt != null) ...[
               const SizedBox(height: 8),
               Text(
@@ -363,24 +374,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () => setState(() {
-                    _loadUserData();
-                  }),
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Try Again'),
-                ),
-                const SizedBox(width: 16),
-                TextButton(
-                  onPressed: _logout,
-                  child: const Text('Login Again'),
-                ),
-              ],
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => setState(() {
+                _loadUserData();
+              }),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try Again'),
             ),
+            // ✅ "Login Again" REMOVED to enforce mandatory logout via main button
           ],
         ),
       ),
@@ -425,30 +427,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Helper method to get profile image with proper URL handling
   ImageProvider? _getProfileImage(String? profilePhotoUrl) {
     if (profilePhotoUrl == null || profilePhotoUrl.isEmpty) {
       return null;
     }
 
-    // If it's already a complete URL, use it directly
     if (profilePhotoUrl.startsWith('http')) {
       return NetworkImage(profilePhotoUrl);
     }
 
-    // If it's a relative path, prepend base URL
     String completeUrl = profilePhotoUrl;
-
     if (!profilePhotoUrl.startsWith('/')) {
       completeUrl = '/$profilePhotoUrl';
     }
-
     completeUrl = '${AppConstants.baseUrl}$completeUrl';
 
     return NetworkImage(completeUrl);
   }
 
-  // Helper method to format date
   String _formatDate(DateTime date) {
     final monthNames = [
       'Jan',
@@ -464,7 +460,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'Nov',
       'Dec'
     ];
-
     return '${monthNames[date.month - 1]} ${date.year}';
   }
 }

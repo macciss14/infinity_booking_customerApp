@@ -36,8 +36,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
                 const Text('Are you sure you want to cancel this booking?'),
             actions: [
               TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('No')),
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('No'),
+              ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                 onPressed: () => Navigator.pop(context, true),
@@ -67,8 +68,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-          title: const Text('My Bookings'), backgroundColor: AppColors.primary),
+      // ✅ NO AppBar
       body: RefreshIndicator(
         onRefresh: () async {
           _refreshBookings();
@@ -171,7 +171,6 @@ class _BookingsScreenState extends State<BookingsScreen> {
                               final confirmed =
                                   await _showCancelConfirmation(context);
                               if (confirmed) {
-                                // TODO: Implement cancelBooking
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                       content: Text('Booking cancelled')),

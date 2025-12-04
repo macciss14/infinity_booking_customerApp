@@ -17,13 +17,10 @@ import '../screens/landing/privacy_policy_content.dart';
 // Main App Screens
 import '../screens/main/main_screen.dart';
 import '../screens/main/home_screen.dart';
-// ❌ Remove: import '../screens/main/services_tab_screen.dart';
 import '../screens/main/bookings_screen.dart';
 import '../screens/main/payments_screen.dart';
 import '../screens/main/profile_screen.dart';
 
-// Service Screens
-// ❌ Remove category/subcategory screens — handled inline in ServiceListScreen
 import '../screens/service/service_list_screen.dart';
 import '../screens/service/service_detail_screen.dart';
 

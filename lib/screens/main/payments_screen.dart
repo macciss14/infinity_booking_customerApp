@@ -8,10 +8,7 @@ class PaymentsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Payments'),
-        backgroundColor: AppColors.primary,
-      ),
+      // ✅ NO AppBar
       body: Center(
         child: Padding(
           padding: EdgeInsets.all(AppConstants.defaultPadding),
@@ -44,7 +41,8 @@ class PaymentsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 32),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(20),

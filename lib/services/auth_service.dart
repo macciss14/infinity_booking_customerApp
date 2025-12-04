@@ -80,8 +80,11 @@ class AuthService {
     }
   }
 
-  // ─── LOGOUT ─────────────────────────────────────────────
+  // lib/services/auth_service.dart
+
+// ─── LOGOUT ─────────────────────────────────────────────
   Future<void> logout() async {
+    // ✅ Remove BuildContext parameter
     try {
       final token = await _secureStorage.getToken();
       if (token != null && token.isNotEmpty) {
@@ -102,6 +105,7 @@ class AuthService {
       print('Logout error: $e');
     } finally {
       await _secureStorage.clearAll();
+      // ✅ DO NOT NAVIGATE HERE — return control to UI
     }
   }
 
