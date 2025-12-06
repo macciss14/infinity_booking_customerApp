@@ -6,29 +6,41 @@ class AppConstants {
   static const String appName = 'Infinity Booking';
   static const String appVersion = '1.0.0';
 
-  // API Configuration
+  // API Configuration — 🔧 FIXED: removed trailing spaces
   static const String baseUrl =
-      'https://infinity-booking-backend1.onrender.com'; // ✅ No trailing spaces
-
-  // ✅ apiBaseUrl is just the base URL (endpoints include /infinity-booking)
+      'https://infinity-booking-backend1.onrender.com';
   static const String apiBaseUrl = '$baseUrl';
 
-  // Endpoints (all include /infinity-booking prefix for clarity)
+  // Auth Endpoints
   static const String registerEndpoint =
       '/infinity-booking/auth/register/customer';
   static const String loginEndpoint = '/infinity-booking/auth/login';
+  static const String logoutEndpoint = '/infinity-booking/auth/logout';
+  static const String changePasswordEndpoint =
+      '/infinity-booking/users/change-password';
+
+  // User Endpoints
   static const String profileEndpoint = '/infinity-booking/users/profile';
   static const String updateProfileEndpoint = '/infinity-booking/users/';
   static const String uploadPhotoEndpoint =
       '/infinity-booking/users/profile-photo/upload';
-  static const String logoutEndpoint = '/infinity-booking/auth/logout';
-  static const String changePasswordEndpoint =
-      '/infinity-booking/users/change-password';
+// In lib/utils/constants.dart, add this endpoint:
+  static const String cancelBookingEndpoint =
+      '/infinity-booking/bookings/{id}/cancel';
+  // Category & Subcategory Endpoints
   static const String categoriesEndpoint = '/infinity-booking/categories';
   static const String subcategoriesEndpoint =
       '/infinity-booking/categories/{id}/subcategories';
+
+  // ✅ NEW: Service Filtering Endpoints (CRITICAL FOR SUBCATEGORY FLOW)
   static const String servicesEndpoint = '/infinity-booking/services';
+  static const String servicesByCategoryEndpoint =
+      '/infinity-booking/services/category/{id}';
+  static const String servicesBySubcategoryEndpoint =
+      '/infinity-booking/services/subcategory/{subcategoryId}';
   static const String serviceDetailEndpoint = '/infinity-booking/services/{id}';
+
+  // Booking Endpoints
   static const String createBookingEndpoint = '/infinity-booking/bookings';
   static const String userBookingsEndpoint = '/infinity-booking/bookings/user';
   static const String bookingDetailEndpoint = '/infinity-booking/bookings/{id}';
@@ -46,6 +58,17 @@ class AppConstants {
   // Design
   static const double defaultPadding = 16.0;
   static const double defaultBorderRadius = 12.0;
+
+  // ✅ Helper to safely replace path parameters
+  static String replacePathParams(String endpoint,
+      {String? id, String? serviceId, String? subcategoryId}) {
+    var result = endpoint;
+    if (id != null) result = result.replaceAll('{id}', id);
+    if (serviceId != null) result = result.replaceAll('{serviceId}', serviceId);
+    if (subcategoryId != null)
+      result = result.replaceAll('{subcategoryId}', subcategoryId);
+    return result;
+  }
 }
 
 class AppStrings {

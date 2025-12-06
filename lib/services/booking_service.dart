@@ -1,14 +1,14 @@
-// lib/services/booking_service.dart
+// lib/services/booking_service.dart - UPDATED VERSION
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../models/booking_model.dart';
 import '../utils/constants.dart';
-import '../utils/secure_storage.dart'; // Make sure this import exists
+import '../models/booking_model.dart';
+import '../utils/secure_storage.dart';
 
 class BookingService {
-  // ✅ Create instance of SecureStorage
   final SecureStorage _secureStorage = SecureStorage();
 
+  // Get user's bookings
   Future<List<BookingModel>> getUserBookings() async {
     final token = await _secureStorage.getToken();
     if (token == null) throw Exception('Not authenticated');
@@ -31,33 +31,10 @@ class BookingService {
     }
   }
 
-  Future<Map<String, dynamic>> getBookingStats(String customerId) async {
+  // Create a booking
+  Future<BookingModel> createBooking(Map<String, dynamic> bookingData) async {
     final token = await _secureStorage.getToken();
     if (token == null) throw Exception('Not authenticated');
-
-    final response = await http.get(
-      Uri.parse(
-          '${AppConstants.apiBaseUrl}/bookings/stats/customer/$customerId'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
-      throw Exception('Failed to load stats: ${response.statusCode}');
-    }
-  }
-
-  Future<Map<String, dynamic>> createBooking(
-      Map<String, dynamic> bookingData) async {
-    final token = await _secureStorage.getToken();
-    if (token == null) throw Exception('Not authenticated');
-
-    final cleanData = Map<String, dynamic>.from(bookingData)
-      ..remove('customerId');
 
     final response = await http.post(
       Uri.parse(
@@ -66,31 +43,66 @@ class BookingService {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: json.encode(cleanData),
+      body: json.encode(bookingData),
     );
 
-    if (response.statusCode == 201) {
-      return json.decode(response.body);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return BookingModel.fromJson(json.decode(response.body));
     } else {
-      final error = response.body;
-      throw Exception('Booking failed: ${response.statusCode} $error');
+      throw Exception(
+          'Failed to create booking: ${response.statusCode} ${response.body}');
     }
   }
 
+  // ✅ ADD THIS METHOD: Cancel a booking
   Future<void> cancelBooking(String bookingId) async {
     final token = await _secureStorage.getToken();
     if (token == null) throw Exception('Not authenticated');
 
-    final response = await http.post(
-      Uri.parse('${AppConstants.apiBaseUrl}/bookings/$bookingId/cancel'),
+    final url = AppConstants.apiBaseUrl +
+        AppConstants.replacePathParams(
+          AppConstants.bookingDetailEndpoint,
+          id: bookingId,
+        );
+
+    final response = await http.patch(
+      Uri.parse('$url/cancel'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
     );
 
-    if (response.statusCode != 200) {
-      throw Exception('Failed to cancel booking: ${response.statusCode}');
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      throw Exception(
+          'Failed to cancel booking: ${response.statusCode} ${response.body}');
+    }
+  }
+
+  // ✅ Optional: Get booking by ID
+  Future<BookingModel> getBookingById(String bookingId) async {
+    final token = await _secureStorage.getToken();
+    if (token == null) throw Exception('Not authenticated');
+
+    final url = AppConstants.apiBaseUrl +
+        AppConstants.replacePathParams(
+          AppConstants.bookingDetailEndpoint,
+          id: bookingId,
+        );
+
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return BookingModel.fromJson(json.decode(response.body));
+    } else {
+      throw Exception(
+          'Failed to get booking: ${response.statusCode} ${response.body}');
     }
   }
 }

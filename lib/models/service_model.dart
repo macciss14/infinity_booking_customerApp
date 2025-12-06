@@ -1,4 +1,4 @@
-// lib/models/service_model.dart - UPDATED
+// lib/models/service_model.dart - IMPROVED PROVIDER EXTRACTION
 class ServiceModel {
   final String id;
   final String name;
@@ -6,7 +6,7 @@ class ServiceModel {
   final double price;
   final String categoryId;
   final List<String> subcategoryIds;
-  final String providerName;
+  final String? providerName;
   final String? imageUrl;
   final String? paymentMethod;
   final String? priceUnit;
@@ -23,6 +23,7 @@ class ServiceModel {
   final double? bookingPrice;
   final String? categoryName;
   final double? rating;
+  final String? providerId;
 
   ServiceModel({
     required this.id,
@@ -31,7 +32,7 @@ class ServiceModel {
     required this.price,
     required this.categoryId,
     required this.subcategoryIds,
-    required this.providerName,
+    this.providerName,
     this.imageUrl,
     this.paymentMethod,
     this.priceUnit,
@@ -48,50 +49,72 @@ class ServiceModel {
     this.bookingPrice,
     this.categoryName,
     this.rating,
+    this.providerId,
   });
 
-  String get formattedPrice => '\$${price.toStringAsFixed(2)}';
+  String get formattedPrice {
+    final unit = priceUnit?.toUpperCase() ?? 'ETB';
+    return '$price $unit';
+  }
 
   factory ServiceModel.fromJson(Map<String, dynamic> json) {
-    // Handle nested structure: check if there's a 'service' key
     Map<String, dynamic> serviceData;
 
     if (json.containsKey('service') &&
         json['service'] is Map<String, dynamic>) {
-      // Nested structure: {service: {...}, categoryId: '...', subcategoryIds: [...]}
       serviceData = Map<String, dynamic>.from(json['service']);
-
-      // Use categoryId from root if available (overrides inner categoryId)
-      if (json['categoryId'] != null) {
-        serviceData['categoryId'] = json['categoryId'];
-      }
-
-      // Use subcategoryIds from root if available
-      if (json['subcategoryIds'] != null && json['subcategoryIds'] is List) {
-        serviceData['subcategoryIds'] = json['subcategoryIds'];
-      }
-
-      // Also check for singular subcategoryId
-      if (json['subcategoryId'] != null &&
-          json['subcategoryId'] != 'undefined') {
-        serviceData['subcategoryIds'] = [json['subcategoryId']];
-      }
     } else {
-      // Flat structure
       serviceData = json;
     }
 
-    // Handle provider name from nested object
-    String providerName = 'Provider Unknown';
+    // Extract provider information from various possible locations
+    String? providerName;
+    String? providerId;
+
+    // Method 1: Check if provider is a Map with name/fullname
     if (serviceData['provider'] is Map<String, dynamic>) {
-      providerName = serviceData['provider']['fullname'] ??
-          serviceData['provider']['name'] ??
-          'Provider Unknown';
-    } else if (json['provider'] is Map<String, dynamic>) {
-      // Check root level provider too
-      providerName = json['provider']['fullname'] ??
-          json['provider']['name'] ??
-          'Provider Unknown';
+      final provider = serviceData['provider'];
+      providerName = provider['fullname'] ??
+          provider['name'] ??
+          provider['businessName'] ??
+          provider['username'];
+      providerId = provider['id']?.toString() ??
+          provider['_id']?.toString() ??
+          provider['providerId']?.toString();
+    }
+
+    // Method 2: Check if providerName is directly in serviceData
+    if (providerName == null && serviceData['providerName'] != null) {
+      providerName = serviceData['providerName'].toString();
+    }
+
+    // Method 3: Check if provider info is at root level
+    if (providerName == null && json['provider'] is Map<String, dynamic>) {
+      final provider = json['provider'];
+      providerName = provider['fullname'] ??
+          provider['name'] ??
+          provider['businessName'] ??
+          provider['username'];
+      providerId = provider['id']?.toString() ?? provider['_id']?.toString();
+    }
+
+    // Method 4: Fallback to placeholder
+    if (providerName == null) {
+      providerName = 'Service Provider';
+    }
+
+    // Extract subcategory IDs - handle various formats
+    List<String> subcategoryIds = [];
+    if (serviceData['subcategoryIds'] is List) {
+      subcategoryIds = (serviceData['subcategoryIds'] as List)
+          .map((id) => id?.toString() ?? '')
+          .where((id) => id.isNotEmpty && id != 'undefined')
+          .toList();
+    } else if (serviceData['subcategoryId'] != null) {
+      final subId = serviceData['subcategoryId'].toString();
+      if (subId.isNotEmpty && subId != 'undefined') {
+        subcategoryIds = [subId];
+      }
     }
 
     return ServiceModel(
@@ -100,20 +123,21 @@ class ServiceModel {
           '',
       name: serviceData['title']?.toString() ??
           serviceData['name']?.toString() ??
+          'Service',
+      description:
+          serviceData['description']?.toString() ?? 'No description available',
+      price: _parseDouble(serviceData['totalPrice'] ??
+          serviceData['price'] ??
+          serviceData['servicePrice']),
+      categoryId: serviceData['categoryId']?.toString() ??
+          serviceData['category']?.toString() ??
           '',
-      description: serviceData['description']?.toString() ?? '',
-      price: _parseDouble(serviceData['totalPrice'] ?? serviceData['price']),
-      categoryId: serviceData['categoryId']?.toString() ?? '',
-      subcategoryIds: (serviceData['subcategoryIds'] as List<dynamic>?)
-              ?.map((id) => id.toString())
-              .where((id) => id.isNotEmpty && id != 'undefined')
-              .toList() ??
-          [],
+      subcategoryIds: subcategoryIds,
       providerName: providerName,
-      imageUrl: (serviceData['banner'] as String?)?.trim() ??
-          (serviceData['imageUrl'] as String?)?.trim(),
+      providerId: providerId,
+      imageUrl: _parseImageUrl(serviceData),
       paymentMethod: serviceData['paymentMethod']?.toString(),
-      priceUnit: serviceData['priceUnit']?.toString(),
+      priceUnit: serviceData['priceUnit']?.toString() ?? 'ETB',
       status: serviceData['status']?.toString(),
       views: _parseInt(serviceData['views']),
       totalBookings: _parseInt(serviceData['totalBookings']),
@@ -128,6 +152,14 @@ class ServiceModel {
       categoryName: serviceData['categoryName']?.toString(),
       rating: _parseDouble(serviceData['rating']),
     );
+  }
+
+  static String? _parseImageUrl(Map<String, dynamic> data) {
+    final banner = data['banner']?.toString()?.trim();
+    final imageUrl = data['imageUrl']?.toString()?.trim();
+    final image = data['image']?.toString()?.trim();
+
+    return banner ?? imageUrl ?? image;
   }
 
   static double _parseDouble(dynamic value) {

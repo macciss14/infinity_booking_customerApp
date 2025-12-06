@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../services/booking_service.dart';
 import '../../services/service_service.dart';
 import '../../models/service_model.dart';
-import '../../utils/secure_storage.dart';
 import '../../utils/constants.dart';
 import '../../config/route_helper.dart';
 
@@ -30,28 +29,32 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
         _serviceService.getServiceById(widget.bookingData['serviceId']);
   }
 
-  // In BookingConfirmationScreen.dart
   Future<void> _confirmBooking() async {
-    setState(() => _isProcessing = true);
+    setState(() {
+      _isProcessing = true;
+      _error = null;
+    });
+
     try {
-      // ✅ Remove customerId completely - backend gets it from token
       final bookingData = {
         'serviceId': widget.bookingData['serviceId'],
         'slotId': widget.bookingData['slotId'],
-        if (widget.bookingData['notes'] != null)
+        if (widget.bookingData['notes'] != null &&
+            (widget.bookingData['notes'] as String).isNotEmpty)
           'notes': widget.bookingData['notes'],
       };
 
       await _bookingService.createBooking(bookingData);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Booking confirmed!')),
+        const SnackBar(content: Text('Booking confirmed successfully!')),
       );
+
       RouteHelper.pushReplacementNamed(context, RouteHelper.main);
     } catch (e) {
       setState(() => _error = e.toString());
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Booking failed: $_error')),
+        SnackBar(content: Text('Booking failed: $e')),
       );
     } finally {
       setState(() => _isProcessing = false);
@@ -72,8 +75,10 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return Center(
+                child: Text('Error loading service: ${snapshot.error}'));
           }
+
           final service = snapshot.data!;
           return SingleChildScrollView(
             padding: EdgeInsets.all(AppConstants.defaultPadding),
@@ -93,24 +98,24 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
                 const SizedBox(height: 16),
                 _buildSummaryCard(
                   title: 'Provider',
-                  content: service.providerName,
+                  content: service.providerName ?? 'Provider Unknown',
                   icon: Icons.person,
                 ),
                 const SizedBox(height: 16),
                 _buildSummaryCard(
                   title: 'Price',
-                  content: '\$${service.price.toStringAsFixed(2)}',
+                  content: service.formattedPrice,
                   icon: Icons.attach_money,
                   color: AppColors.secondary,
                 ),
                 const SizedBox(height: 16),
                 _buildSummaryCard(
                   title: 'Time Slot',
-                  content: _getSlotDisplay(),
+                  content: widget.bookingData['slotId'] ?? 'Selected slot',
                   icon: Icons.access_time,
                 ),
                 if (widget.bookingData['notes'] != null &&
-                    widget.bookingData['notes'].isNotEmpty) ...[
+                    (widget.bookingData['notes'] as String).isNotEmpty) ...[
                   const SizedBox(height: 16),
                   _buildSummaryCard(
                     title: 'Notes',
@@ -122,6 +127,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
                 if (_error != null)
                   Container(
                     padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
                       color: Colors.red.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
@@ -137,8 +143,10 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
                   child: ElevatedButton(
                     onPressed: _isProcessing ? null : _confirmBooking,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryLight,
+                      backgroundColor:
+                          _isProcessing ? Colors.grey : AppColors.primaryLight,
                       foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
                     child: _isProcessing
                         ? const SizedBox(
@@ -147,7 +155,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
                             child:
                                 CircularProgressIndicator(color: Colors.white),
                           )
-                        : const Text('Confirm & Pay'),
+                        : const Text('Confirm & Pay',
+                            style: TextStyle(fontSize: 16)),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -201,6 +210,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
                       fontSize: 12,
                     ),
                   ),
+                  const SizedBox(height: 4),
                   Text(
                     content,
                     style: TextStyle(
@@ -216,10 +226,5 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
         ),
       ),
     );
-  }
-
-  String _getSlotDisplay() {
-    // You can enhance this if your slot object has more data
-    return 'Selected slot';
   }
 }

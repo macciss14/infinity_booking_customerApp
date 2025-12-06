@@ -1,4 +1,4 @@
-// lib/config/route_helper.dart
+// lib/config/route_helper.dart - Update the serviceList case
 import 'package:flutter/material.dart';
 
 // Auth Screens
@@ -90,9 +90,27 @@ class RouteHelper {
       case privacyPolicyContent:
         return MaterialPageRoute(builder: (_) => const PrivacyPolicyContent());
 
-      // ✅ Unified service marketplace — no args needed
+      // ✅ Updated: Handle filtering arguments
       case serviceList:
-        return MaterialPageRoute(builder: (_) => const ServiceListScreen());
+        // Handle arguments for filtering
+        if (args is String) {
+          // Category ID passed as string
+          return MaterialPageRoute(
+            builder: (_) => ServiceListScreen(categoryId: args),
+          );
+        } else if (args is Map<String, dynamic>) {
+          // Multiple filter parameters
+          return MaterialPageRoute(
+            builder: (_) => ServiceListScreen(
+              categoryId: args['categoryId'] as String?,
+              subcategoryId: args['subcategoryId'] as String?,
+              searchQuery: args['searchQuery'] as String?,
+            ),
+          );
+        } else {
+          // No filters
+          return MaterialPageRoute(builder: (_) => const ServiceListScreen());
+        }
 
       case serviceDetail:
         if (args is String) {

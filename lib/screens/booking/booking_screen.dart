@@ -30,9 +30,7 @@ class _BookingScreenState extends State<BookingScreen> {
 
   void _navigateToConfirmation() {
     if (_selectedSlotId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a time slot')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a time slot')));
       return;
     }
 
@@ -47,22 +45,23 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
-  String _formatSlotTime(String isoString) {
+  // ✅ Robust slot time formatting
+  String _formatSlotTime(dynamic slot) {
     try {
-      final dt = DateTime.parse(isoString);
-      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+      String startTime = slot is Map ? (slot['start'] ?? slot['startTime'] ?? '') : slot.toString();
+      if (startTime.isEmpty) return 'Invalid slot';
+      
+      final dt = DateTime.parse(startTime);
+      return '${dt.day}/${dt.month} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     } catch (e) {
-      return isoString.substring(11, 16); // Fallback: "HH:MM" from ISO string
+      return 'Slot';
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Book Service'),
-        backgroundColor: AppColors.primary,
-      ),
+      appBar: AppBar(title: const Text('Book Service'), backgroundColor: AppColors.primary),
       body: FutureBuilder<ServiceModel>(
         future: _serviceFuture,
         builder: (context, serviceSnapshot) {
@@ -83,48 +82,23 @@ class _BookingScreenState extends State<BookingScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppConstants.defaultBorderRadius),
-                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.defaultBorderRadius)),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Row(
                           children: [
                             service.imageUrl != null
-                                ? CircleAvatar(
-                                    radius: 30,
-                                    backgroundImage: NetworkImage(service.imageUrl!),
-                                  )
-                                : const CircleAvatar(
-                                    radius: 30,
-                                    backgroundColor: AppColors.primary,
-                                    child: Icon(Icons.build, color: Colors.white),
-                                  ),
+                                ? CircleAvatar(radius: 30, backgroundImage: NetworkImage(service.imageUrl!))
+                                : const CircleAvatar(radius: 30, backgroundColor: AppColors.primary, child: Icon(Icons.build, color: Colors.white)),
                             const SizedBox(width: 16),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    service.name,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
+                                  Text(service.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                                   const SizedBox(height: 4),
-                                  Text(
-                                    '\$${service.price.toStringAsFixed(2)}',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.secondary,
-                                    ),
-                                  ),
-                                  Text(
-                                    'by ${service.providerName}',
-                                    style: TextStyle(color: AppColors.textSecondary),
-                                  ),
+                                  Text('\$${service.price.toStringAsFixed(2)}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.secondary)),
+                                  Text('by ${service.providerName ?? 'Provider'}', style: TextStyle(color: AppColors.textSecondary)),
                                 ],
                               ),
                             ),
@@ -133,19 +107,10 @@ class _BookingScreenState extends State<BookingScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    const Text(
-                      'Available Time Slots',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
+                    const Text('Available Time Slots', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                     const SizedBox(height: 12),
-                    if (slotSnapshot.connectionState == ConnectionState.waiting)
-                      const LinearProgressIndicator(),
-                    if (slotSnapshot.hasError)
-                      _buildErrorWidget('Failed to load slots: ${slotSnapshot.error}'),
+                    if (slotSnapshot.connectionState == ConnectionState.waiting) const LinearProgressIndicator(),
+                    if (slotSnapshot.hasError) _buildErrorWidget('Failed to load slots: ${slotSnapshot.error}'),
                     if (slotSnapshot.hasData) ...[
                       if (slotSnapshot.data!.isEmpty)
                         Container(
@@ -155,19 +120,15 @@ class _BookingScreenState extends State<BookingScreen> {
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: Colors.orange, width: 1),
                           ),
-                          child: const Text(
-                            'No available slots. Please check back later.',
-                            style: TextStyle(color: Colors.orange),
-                          ),
+                          child: const Text('No available slots. Please check back later.', style: TextStyle(color: Colors.orange)),
                         )
                       else
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children: (slotSnapshot.data as List<dynamic>).map((slot) {
-                            final String slotId = slot['id']?.toString() ?? '';
-                            final String startTime = slot['start']?.toString() ?? '';
-                            final displayTime = _formatSlotTime(startTime);
+                            final String slotId = (slot is Map ? slot['id'] : slot.toString()) ?? '';
+                            final displayTime = _formatSlotTime(slot);
 
                             return FilterChip(
                               label: Text(displayTime),
@@ -182,23 +143,14 @@ class _BookingScreenState extends State<BookingScreen> {
                         ),
                     ],
                     const SizedBox(height: 24),
-                    const Text(
-                      'Additional Notes (Optional)',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
+                    const Text('Additional Notes (Optional)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _notesController,
                       maxLines: 4,
                       decoration: InputDecoration(
                         hintText: 'Special requests or instructions...',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                         contentPadding: const EdgeInsets.all(12),
                       ),
                     ),
@@ -222,10 +174,7 @@ class _BookingScreenState extends State<BookingScreen> {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              child: const Text(
-                'Confirm Booking',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
+              child: const Text('Confirm Booking', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ),
           ),
         ),
@@ -242,11 +191,7 @@ class _BookingScreenState extends State<BookingScreen> {
           children: [
             Icon(Icons.error, size: 64, color: Colors.red[400]),
             const SizedBox(height: 16),
-            Text(
-              message,
-              style: TextStyle(color: Colors.red[700], fontSize: 14),
-              textAlign: TextAlign.center,
-            ),
+            Text(message, style: TextStyle(color: Colors.red[700], fontSize: 14), textAlign: TextAlign.center),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () {

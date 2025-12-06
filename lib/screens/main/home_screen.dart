@@ -25,7 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final AuthService _authService = AuthService();
 
   late Future<List<CategoryModel>> _categoriesFuture;
-  late Future<List<ServiceModel>> _featuredServicesFuture;
+  late Future<List<ServiceModel>> _servicesFuture;
   late Future<List<BookingModel>> _recentBookingsFuture;
   late Future<UserModel?> _userFuture;
 
@@ -37,7 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _loadData() {
     _categoriesFuture = _categoryService.getCategories();
-    _featuredServicesFuture = _serviceService.getServices();
+    _servicesFuture = _serviceService.getAllServices();
     _recentBookingsFuture = _bookingService.getUserBookings();
     _userFuture = _authService.getCurrentUser();
   }
@@ -45,10 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _refreshData() => setState(_loadData);
 
   void _navigateToServices() {
-    // Navigate to Services tab (no need for categories screen)
-    Navigator.of(context)
-        .popUntil((route) => route.settings.name == RouteHelper.main);
-    // Optional: add logic to scroll to top
+    RouteHelper.pushNamed(context, RouteHelper.serviceList);
   }
 
   void _navigateToBookings() {
@@ -59,6 +56,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void _navigateToServiceDetail(String serviceId) {
     RouteHelper.pushNamed(context, RouteHelper.serviceDetail,
         arguments: serviceId);
+  }
+
+  void _navigateToCategoryServices(String categoryId) {
+    RouteHelper.pushNamed(
+      context,
+      RouteHelper.serviceList,
+      arguments: {'categoryId': categoryId},
+    );
   }
 
   @override
@@ -151,7 +156,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   return _buildLoadingGrid();
                 }
                 if (snapshot.hasError) {
-                  return _buildErrorWidget('Failed to load categories');
+                  return _buildErrorWidget(
+                      'Failed to load categories: ${snapshot.error}');
                 }
                 if (snapshot.hasData && snapshot.data!.isNotEmpty) {
                   return _buildCategoriesGrid(snapshot.data!);
@@ -168,13 +174,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 )),
             const SizedBox(height: 16),
             FutureBuilder<List<ServiceModel>>(
-              future: _featuredServicesFuture,
+              future: _servicesFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return _buildLoadingList();
                 }
                 if (snapshot.hasError) {
-                  return _buildErrorWidget('Failed to load services');
+                  return _buildErrorWidget(
+                      'Failed to load services: ${snapshot.error}');
                 }
                 if (snapshot.hasData) {
                   final featured = snapshot.data!.take(5).toList();
@@ -198,7 +205,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   return _buildLoadingList();
                 }
                 if (snapshot.hasError) {
-                  return _buildErrorWidget('Failed to load bookings');
+                  return _buildErrorWidget(
+                      'Failed to load bookings: ${snapshot.error}');
                 }
                 if (snapshot.hasData) {
                   final recent = snapshot.data!.take(3).toList();
@@ -214,17 +222,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ✅ All _build methods unchanged — they already use correct fields (name, imageUrl, etc.)
-  // Copy from your previous version (they work if models are correct)
-
-  Widget _buildQuickAction(
-      {required IconData icon,
-      required String title,
-      required VoidCallback onTap}) {
+  Widget _buildQuickAction({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
     return Card(
       shape: RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.circular(AppConstants.defaultBorderRadius)),
+        borderRadius: BorderRadius.circular(AppConstants.defaultBorderRadius),
+      ),
       elevation: 2,
       child: InkWell(
         onTap: onTap,
@@ -235,10 +241,12 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Icon(icon, size: 32, color: AppColors.primary),
               const SizedBox(height: 8),
-              Text(title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.bold)),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style:
+                    const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
             ],
           ),
         ),
@@ -261,11 +269,12 @@ class _HomeScreenState extends State<HomeScreen> {
         final category = categories[index];
         return Card(
           shape: RoundedRectangleBorder(
-              borderRadius:
-                  BorderRadius.circular(AppConstants.defaultBorderRadius)),
+            borderRadius:
+                BorderRadius.circular(AppConstants.defaultBorderRadius),
+          ),
           elevation: 2,
           child: InkWell(
-            onTap: _navigateToServices, // ← Just go to Services tab
+            onTap: () => _navigateToCategoryServices(category.id),
             borderRadius:
                 BorderRadius.circular(AppConstants.defaultBorderRadius),
             child: Container(
@@ -279,22 +288,38 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: AppColors.primary.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(Icons.category,
-                        color: AppColors.primary, size: 24),
+                    child: category.imageUrl != null
+                        ? Image.network(
+                            category.imageUrl!,
+                            width: 24,
+                            height: 24,
+                            errorBuilder: (context, error, stackTrace) => Icon(
+                                Icons.category,
+                                color: AppColors.primary,
+                                size: 24),
+                          )
+                        : Icon(Icons.category,
+                            color: AppColors.primary, size: 24),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     category.name,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.bold),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  Text('${category.serviceCount ?? 0} services',
-                      style: TextStyle(
-                          fontSize: 10, color: AppColors.textSecondary)),
+                  Text(
+                    '${category.serviceCount ?? 0} services',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -304,29 +329,33 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ✅ _buildServicesList, _buildBookingsList, etc. — keep your existing versions (they use name/imageUrl)
-  // ... (copy from your previous code — they are correct if models are updated)
-
   Widget _buildServicesList(List<ServiceModel> services) {
     return Column(
       children: services
           .map((service) => Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(
-                        AppConstants.defaultBorderRadius)),
+                  borderRadius: BorderRadius.circular(
+                    AppConstants.defaultBorderRadius,
+                  ),
+                ),
                 child: ListTile(
                   leading: service.imageUrl != null
                       ? CircleAvatar(
                           radius: 25,
-                          backgroundImage: NetworkImage(service.imageUrl!))
+                          backgroundImage: NetworkImage(service.imageUrl!),
+                        )
                       : const CircleAvatar(
                           backgroundColor: Colors.grey,
-                          child: Icon(Icons.build, color: Colors.white)),
-                  title: Text(service.name,
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary)),
+                          child: Icon(Icons.build, color: Colors.white),
+                        ),
+                  title: Text(
+                    service.name,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -339,15 +368,21 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: TextStyle(color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: 4),
-                      Text('\$${service.price.toStringAsFixed(2)}',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.secondary)),
+                      Text(
+                        service.formattedPrice,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.secondary,
+                        ),
+                      ),
                     ],
                   ),
-                  trailing: Icon(Icons.arrow_forward_ios,
-                      size: 16, color: AppColors.textSecondary),
-                  onTap: () => _navigateToServiceDetail(service.id.toString()),
+                  trailing: Icon(
+                    Icons.arrow_forward_ios,
+                    size: 16,
+                    color: AppColors.textSecondary,
+                  ),
+                  onTap: () => _navigateToServiceDetail(service.id),
                 ),
               ))
           .toList(),
@@ -360,8 +395,10 @@ class _HomeScreenState extends State<HomeScreen> {
           .map((booking) => Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(
-                        AppConstants.defaultBorderRadius)),
+                  borderRadius: BorderRadius.circular(
+                    AppConstants.defaultBorderRadius,
+                  ),
+                ),
                 child: ListTile(
                   leading: Container(
                     width: 50,
@@ -370,30 +407,42 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: _getStatusColor(booking.status).withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(_getStatusIcon(booking.status),
-                        color: _getStatusColor(booking.status)),
+                    child: Icon(
+                      _getStatusIcon(booking.status),
+                      color: _getStatusColor(booking.status),
+                    ),
                   ),
-                  title: Text(booking.serviceName,
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary)),
+                  title: Text(
+                    booking.serviceName,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                          '${booking.formattedDate} • ${booking.slotStart ?? 'Time pending'}',
-                          style: TextStyle(color: AppColors.textSecondary)),
+                        '${booking.formattedDate} • ${booking.slotStart ?? 'Time pending'}',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
                       const SizedBox(height: 4),
-                      Text(booking.status.toUpperCase(),
-                          style: TextStyle(
-                              color: _getStatusColor(booking.status),
-                              fontWeight: FontWeight.bold)),
+                      Text(
+                        booking.status.toUpperCase(),
+                        style: TextStyle(
+                          color: _getStatusColor(booking.status),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ],
                   ),
-                  trailing: Text('\$${booking.price.toStringAsFixed(2)}',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.secondary)),
+                  trailing: Text(
+                    booking.formattedPrice,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.secondary,
+                    ),
+                  ),
                 ),
               ))
           .toList(),
@@ -430,9 +479,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Loading, error, empty widgets — keep your versions
-  // Loading grid for categories
-// Loading grid for categories
   Widget _buildLoadingGrid() {
     return GridView.builder(
       shrinkWrap: true,
@@ -467,7 +513,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 Container(
                   width: 60,
                   height: 12,
-                  // ✅ CORRECT WAY: Use decoration, not borderRadius
                   decoration: BoxDecoration(
                     color: Colors.grey[300],
                     borderRadius: BorderRadius.circular(4),
@@ -477,7 +522,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 Container(
                   width: 40,
                   height: 8,
-                  // ✅ CORRECT WAY: Use decoration, not borderRadius
                   decoration: BoxDecoration(
                     color: Colors.grey[300],
                     borderRadius: BorderRadius.circular(4),
@@ -491,9 +535,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-// Loading list for services/bookings
-
-// Loading list for services/bookings
   Widget _buildLoadingList() {
     return ListView.builder(
       shrinkWrap: true,
@@ -513,7 +554,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 Container(
                   width: 50,
                   height: 50,
-                  // ✅ CORRECT WAY: Use decoration, not borderRadius
                   decoration: BoxDecoration(
                     color: Colors.grey[300],
                     borderRadius: BorderRadius.circular(8),
@@ -527,7 +567,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       Container(
                         width: 120,
                         height: 16,
-                        // ✅ CORRECT WAY: Use decoration, not borderRadius
                         decoration: BoxDecoration(
                           color: Colors.grey[300],
                           borderRadius: BorderRadius.circular(4),
@@ -537,7 +576,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       Container(
                         width: 180,
                         height: 12,
-                        // ✅ CORRECT WAY: Use decoration, not borderRadius
                         decoration: BoxDecoration(
                           color: Colors.grey[300],
                           borderRadius: BorderRadius.circular(4),
@@ -554,7 +592,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-// Error widget
   Widget _buildErrorWidget(String message) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -582,7 +619,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-// Empty widget
   Widget _buildEmptyWidget(String message) {
     return Container(
       padding: const EdgeInsets.all(32),

@@ -8,6 +8,7 @@ import '../utils/secure_storage.dart';
 class ServiceService {
   final SecureStorage _secureStorage = SecureStorage();
 
+  // ✅ Fetch ALL services
   Future<List<ServiceModel>> getServices() async {
     final token = await _secureStorage.getToken();
     if (token == null) throw Exception('Not authenticated');
@@ -24,39 +25,29 @@ class ServiceService {
       final List<dynamic> data = json.decode(response.body);
       return data.map((json) => ServiceModel.fromJson(json)).toList();
     } else {
-      throw Exception('Failed to load services: ${response.statusCode}');
+      throw Exception(
+          'Failed to load services: ${response.statusCode} ${response.body}');
     }
   }
 
-  Future<List<ServiceModel>> searchServices({
-    String? query,
-    String? categoryId,
-    String? subcategoryId,
-    String? sort,
-  }) async {
+  // ✅ Alias method for getAllServices (used in HomeScreen)
+  Future<List<ServiceModel>> getAllServices() async {
+    return await getServices();
+  }
+
+  // ✅ Fetch services by CATEGORY ID (uses your new endpoint)
+  Future<List<ServiceModel>> getServicesByCategory(String categoryId) async {
     final token = await _secureStorage.getToken();
     if (token == null) throw Exception('Not authenticated');
 
-    final queryParams = <String, String>{};
-    if (query != null && query.trim().isNotEmpty) {
-      queryParams['search'] = query.trim();
-    }
-    if (categoryId != null && categoryId.isNotEmpty) {
-      queryParams['categoryId'] = categoryId;
-    }
-    if (subcategoryId != null && subcategoryId.isNotEmpty) {
-      queryParams['subcategoryId'] = subcategoryId;
-    }
-    if (sort != null) {
-      queryParams['sort'] = sort;
-    }
-
-    final uri =
-        Uri.parse('${AppConstants.apiBaseUrl}${AppConstants.servicesEndpoint}')
-            .replace(queryParameters: queryParams);
+    final url = AppConstants.apiBaseUrl +
+        AppConstants.replacePathParams(
+          AppConstants.servicesByCategoryEndpoint,
+          id: categoryId,
+        );
 
     final response = await http.get(
-      uri,
+      Uri.parse(url),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -67,17 +58,53 @@ class ServiceService {
       final List<dynamic> data = json.decode(response.body);
       return data.map((json) => ServiceModel.fromJson(json)).toList();
     } else {
-      throw Exception('Search failed: ${response.statusCode}');
+      throw Exception(
+          'Failed to load services: ${response.statusCode} ${response.body}');
     }
   }
 
+  // ✅ Fetch services by SUBCATEGORY ID (uses your new endpoint)
+  Future<List<ServiceModel>> getServicesBySubcategory(
+      String subcategoryId) async {
+    final token = await _secureStorage.getToken();
+    if (token == null) throw Exception('Not authenticated');
+
+    final url = AppConstants.apiBaseUrl +
+        AppConstants.replacePathParams(
+          AppConstants.servicesBySubcategoryEndpoint,
+          subcategoryId: subcategoryId,
+        );
+
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.map((json) => ServiceModel.fromJson(json)).toList();
+    } else {
+      throw Exception(
+          'Failed to load services: ${response.statusCode} ${response.body}');
+    }
+  }
+
+  // ✅ Fetch single service by ID
   Future<ServiceModel> getServiceById(String id) async {
     final token = await _secureStorage.getToken();
     if (token == null) throw Exception('Not authenticated');
 
+    final url = AppConstants.apiBaseUrl +
+        AppConstants.replacePathParams(
+          AppConstants.serviceDetailEndpoint,
+          id: id,
+        );
+
     final response = await http.get(
-      Uri.parse(
-          '${AppConstants.apiBaseUrl}${AppConstants.serviceDetailEndpoint.replaceAll('{id}', id)}'),
+      Uri.parse(url),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -87,17 +114,25 @@ class ServiceService {
     if (response.statusCode == 200) {
       return ServiceModel.fromJson(json.decode(response.body));
     } else {
-      throw Exception('Failed to load service: ${response.statusCode}');
+      throw Exception(
+          'Failed to load service: ${response.statusCode} ${response.body}');
     }
   }
 
+  // ✅ Get available slots for a service
   Future<List<dynamic>> getServiceSlots(String serviceId) async {
     final token = await _secureStorage.getToken();
     if (token == null) throw Exception('Not authenticated');
 
+    // Use replacePathParams for consistency
+    final url = AppConstants.apiBaseUrl +
+        AppConstants.replacePathParams(
+          AppConstants.serviceSlotsEndpoint,
+          serviceId: serviceId,
+        );
+
     final response = await http.get(
-      Uri.parse(
-          '${AppConstants.apiBaseUrl}/infinity-booking/services/$serviceId/slots'),
+      Uri.parse(url),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -107,7 +142,41 @@ class ServiceService {
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
-      throw Exception('Failed to load slots: ${response.statusCode}');
+      throw Exception(
+          'Failed to load slots: ${response.statusCode} ${response.body}');
     }
+  }
+
+// Add this method to your existing lib/services/service_service.dart
+  Future<List<ServiceModel>> getFilteredServices({
+    String? categoryId,
+    String? subcategoryId,
+    String? searchQuery,
+  }) async {
+    try {
+      if (categoryId != null && categoryId.isNotEmpty) {
+        return await getServicesByCategory(categoryId);
+      } else if (subcategoryId != null && subcategoryId.isNotEmpty) {
+        return await getServicesBySubcategory(subcategoryId);
+      } else {
+        return await getAllServices();
+      }
+    } catch (e) {
+      throw Exception('Failed to fetch filtered services: $e');
+    }
+  }
+
+  // ✅ Optional: Simple search (client-side fallback)
+  Future<List<ServiceModel>> searchServicesLocally(String query) async {
+    final allServices = await getServices();
+    final lowerQuery = query.toLowerCase().trim();
+
+    if (lowerQuery.isEmpty) return allServices;
+
+    return allServices.where((service) {
+      return service.name.toLowerCase().contains(lowerQuery) ||
+          (service.description ?? '').toLowerCase().contains(lowerQuery) ||
+          (service.providerName ?? '').toLowerCase().contains(lowerQuery);
+    }).toList();
   }
 }
