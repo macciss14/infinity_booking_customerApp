@@ -41,7 +41,8 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (mounted) {
-        RouteHelper.pushAndRemoveUntil(context, RouteHelper.main);
+        // FIXED: Use pushNamedAndRemoveUntil instead of pushAndRemoveUntil
+        RouteHelper.pushNamedAndRemoveUntil(context, RouteHelper.main);
       }
     } catch (e) {
       if (mounted) {
@@ -80,6 +81,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _navigateToRegister() {
+    // FIXED: Use pushNamed instead of pushNamed
     RouteHelper.pushNamed(context, RouteHelper.register);
   }
 
@@ -100,7 +102,8 @@ class _LoginScreenState extends State<LoginScreen> {
         title: const Text('Login'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () =>
+              RouteHelper.pop(context), // FIXED: Use RouteHelper.pop
         ),
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,

@@ -46,6 +46,22 @@ class ApiService {
     return _handleResponse(response);
   }
 
+  Future<dynamic> put(String endpoint,
+      {required Map<String, dynamic> body}) async {
+    final headers = await _getHeaders();
+    final uri = Uri.parse('${AppConstants.apiBaseUrl}$endpoint');
+
+    final response = await http
+        .put(
+          uri,
+          headers: headers,
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 30));
+
+    return _handleResponse(response);
+  }
+
   Future<dynamic> patch(String endpoint,
       {required Map<String, dynamic> body}) async {
     final headers = await _getHeaders();
@@ -57,6 +73,17 @@ class ApiService {
           headers: headers,
           body: jsonEncode(body),
         )
+        .timeout(const Duration(seconds: 30));
+
+    return _handleResponse(response);
+  }
+
+  Future<dynamic> delete(String endpoint) async {
+    final headers = await _getHeaders();
+    final uri = Uri.parse('${AppConstants.apiBaseUrl}$endpoint');
+
+    final response = await http
+        .delete(uri, headers: headers)
         .timeout(const Duration(seconds: 30));
 
     return _handleResponse(response);

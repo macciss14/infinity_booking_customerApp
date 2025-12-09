@@ -1,9 +1,12 @@
 // lib/screens/booking/booking_screen.dart
 import 'package:flutter/material.dart';
 import '../../services/service_service.dart';
+import '../../services/booking_service.dart';
 import '../../models/service_model.dart';
+import '../../widgets/time_slots_display.dart';
 import '../../utils/constants.dart';
 import '../../config/route_helper.dart';
+import '../../utils/time_slots_utils.dart';
 
 class BookingScreen extends StatefulWidget {
   final String serviceId;
@@ -15,53 +18,75 @@ class BookingScreen extends StatefulWidget {
 
 class _BookingScreenState extends State<BookingScreen> {
   final ServiceService _serviceService = ServiceService();
+  final BookingService _bookingService = BookingService();
   late Future<ServiceModel> _serviceFuture;
-  late Future<List<dynamic>> _slotsFuture;
-
+  late Future<List<dynamic>> _bookingsFuture;
   final TextEditingController _notesController = TextEditingController();
-  String? _selectedSlotId;
+  Map<String, dynamic>? _selectedSlot;
+  bool _bookingInProgress = false;
 
   @override
   void initState() {
     super.initState();
     _serviceFuture = _serviceService.getServiceById(widget.serviceId);
-    _slotsFuture = _serviceService.getServiceSlots(widget.serviceId);
+    _bookingsFuture = _bookingService.getUserBookings();
   }
 
-  void _navigateToConfirmation() {
-    if (_selectedSlotId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a time slot')));
+  void _handleSlotSelection(Map<String, dynamic>? slot) {
+    setState(() {
+      _selectedSlot = slot;
+    });
+  }
+
+  void _proceedToPayment() async {
+    if (_selectedSlot == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select a time slot')));
       return;
     }
 
-    RouteHelper.pushNamed(
+    final service = await _serviceFuture;
+    final double totalAmount = service.totalPrice;
+    final String bookingDate = convertToDDMMYYYY(_selectedSlot!['date']);
+
+    RouteHelper.goToPaymentMethod(
       context,
-      RouteHelper.bookingConfirmation,
-      arguments: {
-        'serviceId': widget.serviceId,
-        'slotId': _selectedSlotId,
-        'notes': _notesController.text,
-      },
+      service: service,
+      selectedSlot: _selectedSlot!,
+      totalAmount: totalAmount,
+      bookingDate: bookingDate,
+      notes: _notesController.text,
     );
   }
 
-  // ✅ Robust slot time formatting
-  String _formatSlotTime(dynamic slot) {
-    try {
-      String startTime = slot is Map ? (slot['start'] ?? slot['startTime'] ?? '') : slot.toString();
-      if (startTime.isEmpty) return 'Invalid slot';
-      
-      final dt = DateTime.parse(startTime);
-      return '${dt.day}/${dt.month} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    } catch (e) {
-      return 'Slot';
+  void _skipPayment() async {
+    if (_selectedSlot == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select a time slot')));
+      return;
     }
+
+    final service = await _serviceFuture;
+    final double totalAmount = service.totalPrice;
+    final String bookingDate = convertToDDMMYYYY(_selectedSlot!['date']);
+
+    RouteHelper.goToSkipPayment(
+      context,
+      service: service,
+      selectedSlot: _selectedSlot!,
+      totalAmount: totalAmount,
+      bookingDate: bookingDate,
+      notes: _notesController.text,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Book Service'), backgroundColor: AppColors.primary),
+      appBar: AppBar(
+        title: const Text('Book Service'),
+        backgroundColor: AppColors.primary,
+      ),
       body: FutureBuilder<ServiceModel>(
         future: _serviceFuture,
         builder: (context, serviceSnapshot) {
@@ -69,92 +94,62 @@ class _BookingScreenState extends State<BookingScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (serviceSnapshot.hasError) {
-            return _buildErrorWidget('Failed to load service: ${serviceSnapshot.error}');
+            return _buildErrorWidget('Failed to load service');
           }
           final service = serviceSnapshot.data!;
 
           return FutureBuilder<List<dynamic>>(
-            future: _slotsFuture,
-            builder: (context, slotSnapshot) {
+            future: _bookingsFuture,
+            builder: (context, bookingsSnapshot) {
+              final existingBookings =
+                  bookingsSnapshot.hasData ? bookingsSnapshot.data! : [];
               return SingleChildScrollView(
                 padding: EdgeInsets.all(AppConstants.defaultPadding),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Service Summary
                     Card(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.defaultBorderRadius)),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            service.imageUrl != null
-                                ? CircleAvatar(radius: 30, backgroundImage: NetworkImage(service.imageUrl!))
-                                : const CircleAvatar(radius: 30, backgroundColor: AppColors.primary, child: Icon(Icons.build, color: Colors.white)),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(service.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                                  const SizedBox(height: 4),
-                                  Text('\$${service.price.toStringAsFixed(2)}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.secondary)),
-                                  Text('by ${service.providerName ?? 'Provider'}', style: TextStyle(color: AppColors.textSecondary)),
-                                ],
-                              ),
-                            ),
+                            Text(service.name,
+                                style: const TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            Text(
+                                'Provider: ${service.providerName ?? 'Unknown'}'),
+                            const SizedBox(height: 8),
+                            Text('Total: ${service.formattedTotalPrice}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.secondary)),
                           ],
                         ),
                       ),
                     ),
                     const SizedBox(height: 24),
-                    const Text('Available Time Slots', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                    const SizedBox(height: 12),
-                    if (slotSnapshot.connectionState == ConnectionState.waiting) const LinearProgressIndicator(),
-                    if (slotSnapshot.hasError) _buildErrorWidget('Failed to load slots: ${slotSnapshot.error}'),
-                    if (slotSnapshot.hasData) ...[
-                      if (slotSnapshot.data!.isEmpty)
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.orange, width: 1),
-                          ),
-                          child: const Text('No available slots. Please check back later.', style: TextStyle(color: Colors.orange)),
-                        )
-                      else
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: (slotSnapshot.data as List<dynamic>).map((slot) {
-                            final String slotId = (slot is Map ? slot['id'] : slot.toString()) ?? '';
-                            final displayTime = _formatSlotTime(slot);
-
-                            return FilterChip(
-                              label: Text(displayTime),
-                              selected: _selectedSlotId == slotId,
-                              onSelected: (bool selected) {
-                                setState(() => _selectedSlotId = selected ? slotId : null);
-                              },
-                              selectedColor: AppColors.primaryLight,
-                              checkmarkColor: Colors.white,
-                            );
-                          }).toList(),
-                        ),
-                    ],
+                    // Time Slots
+                    TimeSlotsDisplay(
+                      service: service,
+                      viewOnly: false,
+                      existingBookings: existingBookings,
+                      onSlotSelected: _handleSlotSelection,
+                    ),
                     const SizedBox(height: 24),
-                    const Text('Additional Notes (Optional)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                    const SizedBox(height: 12),
+                    // Notes
                     TextField(
                       controller: _notesController,
                       maxLines: 4,
                       decoration: InputDecoration(
-                        hintText: 'Special requests or instructions...',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.all(12),
+                        labelText: 'Booking Notes (Optional)',
+                        hintText: 'Special instructions...',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                     ),
-                    const SizedBox(height: 40),
                   ],
                 ),
               );
@@ -165,17 +160,25 @@ class _BookingScreenState extends State<BookingScreen> {
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _selectedSlotId == null ? null : _navigateToConfirmation,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _selectedSlotId == null ? Colors.grey : AppColors.primaryLight,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _selectedSlot == null ? null : _proceedToPayment,
+                  child: const Text('Proceed to Payment'),
+                ),
               ),
-              child: const Text('Confirm Booking', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: _selectedSlot == null ? null : _skipPayment,
+                  child: const Text('Book Without Payment'),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -191,12 +194,13 @@ class _BookingScreenState extends State<BookingScreen> {
           children: [
             Icon(Icons.error, size: 64, color: Colors.red[400]),
             const SizedBox(height: 16),
-            Text(message, style: TextStyle(color: Colors.red[700], fontSize: 14), textAlign: TextAlign.center),
+            Text(message, style: TextStyle(color: Colors.red[700])),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () {
                 setState(() {
-                  _slotsFuture = _serviceService.getServiceSlots(widget.serviceId);
+                  _serviceFuture =
+                      _serviceService.getServiceById(widget.serviceId);
                 });
               },
               child: const Text('Retry'),

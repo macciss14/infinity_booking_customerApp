@@ -58,8 +58,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // lib/screens/main/profile_screen.dart
-
   Future<void> _logout() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -68,37 +66,74 @@ class _ProfileScreenState extends State<ProfileScreen> {
         content: const Text('Are you sure you want to logout?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
+            onPressed: () => RouteHelper.pop(context, false),
+            child: const Text('Cancel'),
+          ),
           TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Logout')),
+            onPressed: () => RouteHelper.pop(context, true),
+            child: const Text('Logout'),
+          ),
         ],
       ),
     );
 
     if (confirmed == true && mounted) {
       try {
-        // ✅ 1. Call logout (no context)
+        RouteHelper.showLoadingDialog(context, message: 'Logging out...');
         await _authService.logout();
+        RouteHelper.hideLoadingDialog(context);
 
-        // ✅ 2. THEN navigate (UI handles this)
-        RouteHelper.pushAndRemoveUntil(context, RouteHelper.initial);
+        // FIXED: Use pushNamedAndRemoveUntil instead of pushAndRemoveUntil
+        RouteHelper.pushNamedAndRemoveUntil(context, RouteHelper.login);
       } catch (e) {
+        RouteHelper.hideLoadingDialog(context);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-                content: Text('Logout failed: $e'),
-                backgroundColor: Colors.red),
+              content: Text('Logout failed: $e'),
+              backgroundColor: Colors.red,
+            ),
           );
         }
       }
     }
   }
 
+  void _navigateToEditProfile() {
+    RouteHelper.pushNamed(context, RouteHelper.editProfile);
+  }
+
+  void _navigateToHelpSupport() {
+    RouteHelper.pushNamed(context, RouteHelper.contactContent);
+  }
+
+  void _navigateToPrivacyPolicy() {
+    RouteHelper.pushNamed(context, RouteHelper.privacyPolicyContent);
+  }
+
+  void _navigateToTermsOfService() {
+    RouteHelper.pushNamed(context, RouteHelper.termsOfServiceContent);
+  }
+
+  void _navigateToAbout() {
+    RouteHelper.pushNamed(context, RouteHelper.aboutContent);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Profile'),
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => _loadUserData(showRefreshIndicator: true),
+            tooltip: 'Refresh Profile',
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: () => _loadUserData(showRefreshIndicator: true),
         child: SingleChildScrollView(
@@ -128,7 +163,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 24),
               _buildMenuSection(),
               const SizedBox(height: 24),
-              // ✅ MANDATORY LOGOUT BUTTON WITH TEXT
+              // Logout Button
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -182,8 +217,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       : null,
                 ),
                 GestureDetector(
-                  onTap: () =>
-                      RouteHelper.pushNamed(context, RouteHelper.editProfile),
+                  onTap: _navigateToEditProfile,
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
@@ -253,7 +287,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             if (user.createdAt != null) ...[
               const SizedBox(height: 8),
               Text(
-                'Member since ${_formatDate(user.createdAt)}',
+                'Member since ${_formatDate(user.createdAt!)}',
                 style: TextStyle(fontSize: 14, color: Colors.grey[500]),
               ),
             ],
@@ -261,10 +295,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
-                  RouteHelper.pushNamed(context, RouteHelper.editProfile);
-                },
+                onPressed: _navigateToEditProfile,
                 style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -272,7 +305,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 child: const Text(
                   'Edit Profile',
-                  style: TextStyle(fontSize: 16),
+                  style: TextStyle(fontSize: 16, color: Colors.white),
                 ),
               ),
             ),
@@ -294,32 +327,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _buildMenuTile(
             icon: Icons.help_outline,
             title: 'Help & Support',
-            onTap: () {
-              RouteHelper.pushNamed(context, RouteHelper.contactContent);
-            },
+            onTap: _navigateToHelpSupport,
           ),
           _buildDivider(),
           _buildMenuTile(
             icon: Icons.privacy_tip_outlined,
             title: 'Privacy Policy',
-            onTap: () {
-              RouteHelper.pushNamed(context, RouteHelper.privacyPolicyContent);
-            },
+            onTap: _navigateToPrivacyPolicy,
           ),
           _buildDivider(),
           _buildMenuTile(
             icon: Icons.description_outlined,
             title: 'Terms of Service',
-            onTap: () {
-              RouteHelper.pushNamed(context, RouteHelper.termsOfServiceContent);
-            },
+            onTap: _navigateToTermsOfService,
           ),
           _buildDivider(),
           _buildMenuTile(
             icon: Icons.info_outline,
             title: 'About',
+            onTap: _navigateToAbout,
+          ),
+          _buildDivider(),
+          _buildMenuTile(
+            icon: Icons.settings_outlined,
+            title: 'Settings',
             onTap: () {
-              RouteHelper.pushNamed(context, RouteHelper.aboutContent);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Settings coming soon!'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
             },
           ),
         ],
@@ -334,21 +372,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            const CircleAvatar(
+            CircleAvatar(
               radius: 60,
-              backgroundColor: Colors.grey,
+              backgroundColor: Colors.grey[200],
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: 200,
-              child: LinearProgressIndicator(
-                backgroundColor: Colors.grey[200],
                 valueColor: AlwaysStoppedAnimation<Color>(
                   Theme.of(context).primaryColor,
                 ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Loading profile...',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
               ),
             ),
           ],
@@ -382,7 +420,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               icon: const Icon(Icons.refresh),
               label: const Text('Try Again'),
             ),
-            // ✅ "Login Again" REMOVED to enforce mandatory logout via main button
           ],
         ),
       ),
@@ -413,7 +450,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         color: Colors.grey[600],
       ),
       onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     );
   }
 
@@ -432,17 +469,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return null;
     }
 
-    if (profilePhotoUrl.startsWith('http')) {
-      return NetworkImage(profilePhotoUrl);
-    }
+    try {
+      if (profilePhotoUrl.startsWith('http')) {
+        return NetworkImage(profilePhotoUrl);
+      }
 
-    String completeUrl = profilePhotoUrl;
-    if (!profilePhotoUrl.startsWith('/')) {
-      completeUrl = '/$profilePhotoUrl';
-    }
-    completeUrl = '${AppConstants.baseUrl}$completeUrl';
+      String completeUrl = profilePhotoUrl;
+      if (!profilePhotoUrl.startsWith('/')) {
+        completeUrl = '/$profilePhotoUrl';
+      }
+      completeUrl = '${AppConstants.baseUrl}$completeUrl';
 
-    return NetworkImage(completeUrl);
+      return NetworkImage(completeUrl);
+    } catch (e) {
+      print('Error loading profile image: $e');
+      return null;
+    }
   }
 
   String _formatDate(DateTime date) {

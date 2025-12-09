@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart'; // Add this import
+import 'package:flutter/gestures.dart';
 import '../../services/auth_service.dart';
 import '../../utils/validators.dart';
 import '../../config/route_helper.dart';
@@ -98,7 +98,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         await Future.delayed(const Duration(milliseconds: 1500));
 
         if (mounted) {
-          RouteHelper.pushAndRemoveUntil(context, RouteHelper.login);
+          // FIXED: Use pushNamedAndRemoveUntil instead of pushAndRemoveUntil
+          RouteHelper.pushNamedAndRemoveUntil(context, RouteHelper.login);
         }
       }
     } catch (e) {
@@ -145,7 +146,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => RouteHelper.pop(context), // FIXED: Use RouteHelper.pop
             child: const Text('OK'),
           ),
         ],
@@ -185,7 +186,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => RouteHelper.pop(context), // FIXED: Use RouteHelper.pop
             child: const Text('Close'),
           ),
         ],
@@ -194,10 +195,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _navigateToLogin() {
-    RouteHelper.pushNamed(context, RouteHelper.login);
+    // FIXED: Use pushReplacementNamed instead of pushNamed
+    RouteHelper.pushReplacementNamed(context, RouteHelper.login);
   }
 
   void _navigateToPrivacy() {
+    // FIXED: Use pushNamed
     RouteHelper.pushNamed(context, RouteHelper.privacyPolicyContent);
   }
 
@@ -208,7 +211,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         title: const Text('Register'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => RouteHelper.pop(context), // FIXED: Use RouteHelper.pop
         ),
       ),
       body: SingleChildScrollView(

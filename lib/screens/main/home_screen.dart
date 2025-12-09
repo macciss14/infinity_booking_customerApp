@@ -49,21 +49,47 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _navigateToBookings() {
-    Navigator.of(context)
-        .popUntil((route) => route.settings.name == RouteHelper.main);
+    RouteHelper.pushNamed(context, RouteHelper.bookings);
   }
 
   void _navigateToServiceDetail(String serviceId) {
-    RouteHelper.pushNamed(context, RouteHelper.serviceDetail,
-        arguments: serviceId);
+    RouteHelper.pushNamed(
+      context,
+      RouteHelper.serviceDetail,
+      arguments: serviceId,
+    );
   }
 
   void _navigateToCategoryServices(String categoryId) {
-    RouteHelper.pushNamed(
+    RouteHelper.goToServiceList(
       context,
-      RouteHelper.serviceList,
-      arguments: {'categoryId': categoryId},
+      categoryId: categoryId,
     );
+  }
+
+  // ✅ NEW: Calculate available service counts per category
+  Map<String, int> _calculateServiceCounts(
+    List<CategoryModel> categories,
+    List<ServiceModel> services,
+  ) {
+    final counts = <String, int>{};
+
+    // Initialize counts to 0
+    for (final category in categories) {
+      counts[category.id] = 0;
+    }
+
+    // Count available services
+    for (final service in services) {
+      if (service.isAvailableForBooking()) {
+        final categoryId = service.categoryId;
+        if (counts.containsKey(categoryId)) {
+          counts[categoryId] = counts[categoryId]! + 1;
+        }
+      }
+    }
+
+    return counts;
   }
 
   @override
@@ -136,7 +162,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: _buildQuickAction(
                     icon: Icons.local_offer,
                     title: 'Special\nOffers',
-                    onTap: () {},
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Special offers coming soon!'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ],
@@ -149,18 +182,40 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: AppColors.textPrimary,
                 )),
             const SizedBox(height: 16),
+            // ✅ Updated: Combine categories and services futures
             FutureBuilder<List<CategoryModel>>(
               future: _categoriesFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+              builder: (context, categorySnapshot) {
+                if (categorySnapshot.connectionState ==
+                    ConnectionState.waiting) {
                   return _buildLoadingGrid();
                 }
-                if (snapshot.hasError) {
+                if (categorySnapshot.hasError) {
                   return _buildErrorWidget(
-                      'Failed to load categories: ${snapshot.error}');
+                      'Failed to load categories: ${categorySnapshot.error}');
                 }
-                if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-                  return _buildCategoriesGrid(snapshot.data!);
+                if (categorySnapshot.hasData &&
+                    categorySnapshot.data!.isNotEmpty) {
+                  final categories = categorySnapshot.data!;
+                  return FutureBuilder<List<ServiceModel>>(
+                    future: _servicesFuture,
+                    builder: (context, serviceSnapshot) {
+                      if (serviceSnapshot.connectionState ==
+                          ConnectionState.waiting) {
+                        return _buildLoadingGrid();
+                      }
+                      if (serviceSnapshot.hasError) {
+                        return _buildErrorWidget(
+                            'Failed to load services: ${serviceSnapshot.error}');
+                      }
+                      // ✅ Calculate service counts
+                      final serviceCounts = _calculateServiceCounts(
+                        categories,
+                        serviceSnapshot.data ?? [],
+                      );
+                      return _buildCategoriesGrid(categories, serviceCounts);
+                    },
+                  );
                 }
                 return _buildEmptyWidget('No categories available');
               },
@@ -184,8 +239,18 @@ class _HomeScreenState extends State<HomeScreen> {
                       'Failed to load services: ${snapshot.error}');
                 }
                 if (snapshot.hasData) {
-                  final featured = snapshot.data!.take(5).toList();
-                  return _buildServicesList(featured);
+                  // Filter featured services or just take first 5
+                  final featuredServices = snapshot.data!
+                      .where((service) => service.isFeatured == true)
+                      .take(5)
+                      .toList();
+
+                  // If no featured services, show first 5
+                  final services = featuredServices.isNotEmpty
+                      ? featuredServices
+                      : snapshot.data!.take(5).toList();
+
+                  return _buildServicesList(services);
                 }
                 return _buildEmptyWidget('No featured services');
               },
@@ -208,7 +273,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   return _buildErrorWidget(
                       'Failed to load bookings: ${snapshot.error}');
                 }
-                if (snapshot.hasData) {
+                if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                  // Get recent bookings (last 3)
                   final recent = snapshot.data!.take(3).toList();
                   return _buildBookingsList(recent);
                 }
@@ -254,7 +320,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildCategoriesGrid(List<CategoryModel> categories) {
+  // ✅ Updated: Accept serviceCounts parameter
+  Widget _buildCategoriesGrid(
+    List<CategoryModel> categories,
+    Map<String, int> serviceCounts,
+  ) {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -267,6 +337,8 @@ class _HomeScreenState extends State<HomeScreen> {
       itemCount: categories.length > 6 ? 6 : categories.length,
       itemBuilder: (context, index) {
         final category = categories[index];
+        final count = serviceCounts[category.id] ?? 0;
+
         return Card(
           shape: RoundedRectangleBorder(
             borderRadius:
@@ -314,7 +386,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${category.serviceCount ?? 0} services',
+                    '$count services',
                     style: TextStyle(
                       fontSize: 10,
                       color: AppColors.textSecondary,
@@ -340,15 +412,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 child: ListTile(
-                  leading: service.imageUrl != null
-                      ? CircleAvatar(
-                          radius: 25,
-                          backgroundImage: NetworkImage(service.imageUrl!),
-                        )
-                      : const CircleAvatar(
-                          backgroundColor: Colors.grey,
-                          child: Icon(Icons.build, color: Colors.white),
-                        ),
+                  leading:
+                      service.imageUrl != null && service.imageUrl!.isNotEmpty
+                          ? CircleAvatar(
+                              radius: 25,
+                              backgroundImage: NetworkImage(service.imageUrl!),
+                              backgroundColor: Colors.grey[200],
+                            )
+                          : const CircleAvatar(
+                              backgroundColor: Colors.grey,
+                              child: Icon(Icons.build, color: Colors.white),
+                            ),
                   title: Text(
                     service.name,
                     style: TextStyle(
@@ -368,12 +442,31 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: TextStyle(color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        service.formattedPrice,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.secondary,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            service.formattedPrice,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.secondary,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          if (service.rating != null && service.rating! > 0)
+                            Row(
+                              children: [
+                                Icon(Icons.star, size: 14, color: Colors.amber),
+                                const SizedBox(width: 2),
+                                Text(
+                                  service.rating!.toStringAsFixed(1),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                        ],
                       ),
                     ],
                   ),
@@ -423,26 +516,55 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${booking.formattedDate} • ${booking.slotStart ?? 'Time pending'}',
+                        '${booking.formattedBookingDate} • ${booking.formattedTimeRange}',
                         style: TextStyle(color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        booking.status.toUpperCase(),
-                        style: TextStyle(
-                          color: _getStatusColor(booking.status),
-                          fontWeight: FontWeight.bold,
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color:
+                              _getStatusColor(booking.status).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          booking.status.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: _getStatusColor(booking.status),
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  trailing: Text(
-                    booking.formattedPrice,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.secondary,
-                    ),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${booking.totalAmount.toStringAsFixed(2)} ${booking.currency}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.secondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                      if (booking.isPendingPayment)
+                        Text(
+                          'Payment Pending',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.orange,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                    ],
                   ),
+                  onTap: () {
+                    RouteHelper.pushNamed(context, RouteHelper.bookings);
+                  },
                 ),
               ))
           .toList(),
@@ -454,6 +576,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'confirmed':
         return Colors.green;
       case 'pending':
+      case 'pending_payment':
         return Colors.orange;
       case 'completed':
         return AppColors.primary;
@@ -469,6 +592,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'confirmed':
         return Icons.check_circle;
       case 'pending':
+      case 'pending_payment':
         return Icons.schedule;
       case 'completed':
         return Icons.done_all;

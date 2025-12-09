@@ -14,12 +14,16 @@ class ServiceListScreen extends StatefulWidget {
   final String? categoryId;
   final String? subcategoryId;
   final String? searchQuery;
+  final String? categoryName;
+  final String? subcategoryName;
 
   const ServiceListScreen({
     Key? key,
     this.categoryId,
     this.subcategoryId,
     this.searchQuery,
+    this.categoryName,
+    this.subcategoryName,
   }) : super(key: key);
 
   @override
@@ -936,6 +940,15 @@ class _ServiceListScreenState extends State<ServiceListScreen> {
   }
 
   String _getAppBarTitle(ServiceFilterProvider filterProvider) {
+    // First check if constructor provided names
+    if (widget.categoryName != null && widget.categoryName!.isNotEmpty) {
+      return widget.categoryName!;
+    }
+    if (widget.subcategoryName != null && widget.subcategoryName!.isNotEmpty) {
+      return widget.subcategoryName!;
+    }
+
+    // Fall back to filter provider names
     if (filterProvider.selectedSubcategory != null) {
       return filterProvider.selectedSubcategory!.name;
     } else if (filterProvider.selectedCategory != null) {
