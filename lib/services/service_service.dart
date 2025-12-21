@@ -12,7 +12,6 @@ class ServiceService {
   Future<List<ServiceModel>> getServices() async {
     final token = await _secureStorage.getToken();
     if (token == null) throw Exception('Not authenticated');
-
     final response = await http.get(
       Uri.parse('${AppConstants.apiBaseUrl}${AppConstants.servicesEndpoint}'),
       headers: {
@@ -20,7 +19,6 @@ class ServiceService {
         'Content-Type': 'application/json',
       },
     );
-
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
       return data.map((json) => ServiceModel.fromJson(json)).toList();
@@ -35,17 +33,15 @@ class ServiceService {
     return await getServices();
   }
 
-  // ✅ Fetch services by CATEGORY ID (uses your new endpoint)
+  // ✅ Fetch services by CATEGORY ID
   Future<List<ServiceModel>> getServicesByCategory(String categoryId) async {
     final token = await _secureStorage.getToken();
     if (token == null) throw Exception('Not authenticated');
-
     final url = AppConstants.apiBaseUrl +
         AppConstants.replacePathParams(
           AppConstants.servicesByCategoryEndpoint,
           id: categoryId,
         );
-
     final response = await http.get(
       Uri.parse(url),
       headers: {
@@ -53,7 +49,6 @@ class ServiceService {
         'Content-Type': 'application/json',
       },
     );
-
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
       return data.map((json) => ServiceModel.fromJson(json)).toList();
@@ -63,18 +58,16 @@ class ServiceService {
     }
   }
 
-  // ✅ Fetch services by SUBCATEGORY ID (uses your new endpoint)
+  // ✅ Fetch services by SUBCATEGORY ID
   Future<List<ServiceModel>> getServicesBySubcategory(
       String subcategoryId) async {
     final token = await _secureStorage.getToken();
     if (token == null) throw Exception('Not authenticated');
-
     final url = AppConstants.apiBaseUrl +
         AppConstants.replacePathParams(
           AppConstants.servicesBySubcategoryEndpoint,
           subcategoryId: subcategoryId,
         );
-
     final response = await http.get(
       Uri.parse(url),
       headers: {
@@ -82,7 +75,6 @@ class ServiceService {
         'Content-Type': 'application/json',
       },
     );
-
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
       return data.map((json) => ServiceModel.fromJson(json)).toList();
@@ -92,19 +84,23 @@ class ServiceService {
     }
   }
 
-  // ✅ Fetch single service by ID
+  // ✅ FIXED: Fetch single service by ID WITH provider populated
+  // ✅ Fetch single service by ID WITH provider populated
   Future<ServiceModel> getServiceById(String id) async {
     final token = await _secureStorage.getToken();
     if (token == null) throw Exception('Not authenticated');
 
-    final url = AppConstants.apiBaseUrl +
-        AppConstants.replacePathParams(
-          AppConstants.serviceDetailEndpoint,
-          id: id,
-        );
+    // Build URL with query parameter to populate provider
+    final uri = Uri.parse(
+            '${AppConstants.apiBaseUrl}${AppConstants.serviceDetailEndpoint}')
+        .replace(
+      path: AppConstants.replacePathParams(AppConstants.serviceDetailEndpoint,
+          id: id),
+      queryParameters: {'populate': 'provider'},
+    );
 
     final response = await http.get(
-      Uri.parse(url),
+      uri,
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -123,14 +119,11 @@ class ServiceService {
   Future<List<dynamic>> getServiceSlots(String serviceId) async {
     final token = await _secureStorage.getToken();
     if (token == null) throw Exception('Not authenticated');
-
-    // Use replacePathParams for consistency
     final url = AppConstants.apiBaseUrl +
         AppConstants.replacePathParams(
           AppConstants.serviceSlotsEndpoint,
           serviceId: serviceId,
         );
-
     final response = await http.get(
       Uri.parse(url),
       headers: {
@@ -138,7 +131,6 @@ class ServiceService {
         'Content-Type': 'application/json',
       },
     );
-
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
@@ -147,22 +139,18 @@ class ServiceService {
     }
   }
 
-// Add this method to your existing lib/services/service_service.dart
+  // ✅ Fetch filtered services
   Future<List<ServiceModel>> getFilteredServices({
     String? categoryId,
     String? subcategoryId,
     String? searchQuery,
   }) async {
-    try {
-      if (categoryId != null && categoryId.isNotEmpty) {
-        return await getServicesByCategory(categoryId);
-      } else if (subcategoryId != null && subcategoryId.isNotEmpty) {
-        return await getServicesBySubcategory(subcategoryId);
-      } else {
-        return await getAllServices();
-      }
-    } catch (e) {
-      throw Exception('Failed to fetch filtered services: $e');
+    if (categoryId != null && categoryId.isNotEmpty) {
+      return await getServicesByCategory(categoryId);
+    } else if (subcategoryId != null && subcategoryId.isNotEmpty) {
+      return await getServicesBySubcategory(subcategoryId);
+    } else {
+      return await getAllServices();
     }
   }
 
@@ -170,9 +158,7 @@ class ServiceService {
   Future<List<ServiceModel>> searchServicesLocally(String query) async {
     final allServices = await getServices();
     final lowerQuery = query.toLowerCase().trim();
-
     if (lowerQuery.isEmpty) return allServices;
-
     return allServices.where((service) {
       return service.name.toLowerCase().contains(lowerQuery) ||
           (service.description ?? '').toLowerCase().contains(lowerQuery) ||

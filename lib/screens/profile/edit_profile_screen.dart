@@ -425,8 +425,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   // In EditProfileScreen, update the _buildProfileImage method:
 
-  // In EditProfileScreen, update the _buildProfileImage method:
-
   Widget _buildProfileImage() {
     if (_isUploadingPhoto) {
       return Container(

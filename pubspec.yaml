@@ -7,6 +7,7 @@ version: 1.0.0+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
+
 dependencies:
   flutter:
     sdk: flutter
@@ -20,7 +21,6 @@ dependencies:
   flutter_dotenv: ^5.0.2
   cached_network_image: ^3.2.3
   url_launcher: ^6.1.10
-  
   carousel_slider: ^4.2.1
   flutter_rating_bar: ^4.0.1
   datetime_picker_formfield: ^2.0.0
@@ -30,12 +30,16 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.14.4  # For app icon generation
 
 flutter:
   uses-material-design: true
-  
-  #assets:
-    #- assets/images/
-    #- assets/images/icons/
-    #- assets/images/logos/
-   # - assets/images/placeholder/
+
+  assets:
+    - assets/images/icons/
+    - assets/images/logos/
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/icons/app_icon.png"  # Your launcher icon

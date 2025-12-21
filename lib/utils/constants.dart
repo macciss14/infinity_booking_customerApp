@@ -6,90 +6,92 @@ class AppConstants {
   static const String appName = 'Infinity Booking';
   static const String appVersion = '1.0.0';
 
-  // API Configuration — 🔧 FIXED: removed trailing spaces
+  // API Configuration — ✅ CORRECTED
   static const String baseUrl =
       'https://infinity-booking-backend1.onrender.com';
-  static const String apiBaseUrl = '$baseUrl';
+  static const String apiBaseUrl = '${baseUrl}/'; // ✅ Trailing slash
 
   // Auth Endpoints
   static const String registerEndpoint =
-      '/infinity-booking/auth/register/customer';
-  static const String loginEndpoint = '/infinity-booking/auth/login';
-  static const String logoutEndpoint = '/infinity-booking/auth/logout';
+      'infinity-booking/auth/register/customer';
+  static const String loginEndpoint = 'infinity-booking/auth/login';
+  static const String logoutEndpoint = 'infinity-booking/auth/logout';
   static const String changePasswordEndpoint =
-      '/infinity-booking/users/change-password';
+      'infinity-booking/users/change-password';
 
   // User Endpoints
-  static const String profileEndpoint = '/infinity-booking/users/profile';
-  static const String updateProfileEndpoint = '/infinity-booking/users/';
+  static const String profileEndpoint = 'infinity-booking/users/profile';
+  static const String updateProfileEndpoint = 'infinity-booking/users/';
   static const String uploadPhotoEndpoint =
-      '/infinity-booking/users/profile-photo/upload';
-  static const String currentUserEndpoint = '/infinity-booking/users/current';
-
-  // Category & Subcategory Endpoints
-  static const String categoriesEndpoint = '/infinity-booking/categories';
-  static const String categoryDetailEndpoint =
-      '/infinity-booking/categories/{id}';
-  static const String subcategoriesEndpoint =
-      '/infinity-booking/categories/{id}/subcategories';
-  static const String subcategoryDetailEndpoint =
-      '/infinity-booking/subcategories/{id}';
-
-  // ✅ Service Filtering Endpoints (CRITICAL FOR SUBCATEGORY FLOW)
-  static const String servicesEndpoint = '/infinity-booking/services';
-  static const String servicesByCategoryEndpoint =
-      '/infinity-booking/services/category/{id}';
-  static const String servicesBySubcategoryEndpoint =
-      '/infinity-booking/services/subcategory/{subcategoryId}';
-  static const String serviceDetailEndpoint = '/infinity-booking/services/{id}';
-  static const String featuredServicesEndpoint =
-      '/infinity-booking/services/featured';
-  static const String popularServicesEndpoint =
-      '/infinity-booking/services/popular';
-  static const String searchServicesEndpoint =
-      '/infinity-booking/services/search';
+      'infinity-booking/users/profile-photo/upload';
+  static const String currentUserEndpoint = 'infinity-booking/users/current';
 
   // ✅ Provider Endpoints
-  static const String providerEndpoint = '/infinity-booking/providers/{id}';
+  static const String providerEndpoint = 'infinity-booking/providers/{id}';
+  static const String providerByPidEndpoint =
+      'infinity-booking/users/providers/by-pid/{pid}'; // EXACT ENDPOINT
 
-  // ✅ Booking Endpoints
-  static const String createBookingEndpoint = '/infinity-booking/bookings';
-  static const String userBookingsEndpoint = '/infinity-booking/bookings/user';
-  static const String bookingDetailEndpoint = '/infinity-booking/bookings/{id}';
+  // Category & Subcategory Endpoints
+  static const String categoriesEndpoint = 'infinity-booking/categories';
+  static const String categoryDetailEndpoint =
+      'infinity-booking/categories/{id}';
+  static const String subcategoriesEndpoint =
+      'infinity-booking/categories/{id}/subcategories';
+  static const String subcategoryDetailEndpoint =
+      'infinity-booking/subcategories/{id}';
+
+  // Service Endpoints
+  static const String servicesEndpoint = 'infinity-booking/services';
+  static const String servicesByCategoryEndpoint =
+      'infinity-booking/services/category/{id}';
+  static const String servicesBySubcategoryEndpoint =
+      'infinity-booking/services/subcategory/{subcategoryId}';
+  static const String serviceDetailEndpoint = 'infinity-booking/services/{id}';
+  static const String featuredServicesEndpoint =
+      'infinity-booking/services/featured';
+  static const String popularServicesEndpoint =
+      'infinity-booking/services/popular';
+  static const String searchServicesEndpoint =
+      'infinity-booking/services/search';
+
+  // Booking Endpoints
+  static const String createBookingEndpoint = 'infinity-booking/bookings';
+  static const String userBookingsEndpoint = 'infinity-booking/bookings/user';
+  static const String bookingDetailEndpoint = 'infinity-booking/bookings/{id}';
   static const String serviceSlotsEndpoint =
-      '/infinity-booking/services/{serviceId}/slots';
+      'infinity-booking/services/{serviceId}/slots';
   static const String cancelBookingEndpoint =
-      '/infinity-booking/bookings/{id}/cancel';
+      'infinity-booking/bookings/{id}/cancel';
   static const String updateBookingStatusEndpoint =
-      '/infinity-booking/bookings/{id}/status';
+      'infinity-booking/bookings/{id}/status';
   static const String rescheduleBookingEndpoint =
-      '/infinity-booking/bookings/{id}/reschedule';
+      'infinity-booking/bookings/{id}/reschedule';
   static const String checkSlotAvailabilityEndpoint =
-      '/infinity-booking/bookings/check-availability';
+      'infinity-booking/bookings/check-availability';
   static const String bookingStatisticsEndpoint =
-      '/infinity-booking/bookings/statistics';
+      'infinity-booking/bookings/statistics';
   static const String upcomingBookingsEndpoint =
-      '/infinity-booking/bookings/upcoming';
+      'infinity-booking/bookings/upcoming';
 
-  // ✅ Payment Endpoints
+  // Payment Endpoints
   static const String processPaymentEndpoint =
-      '/infinity-booking/payments/process';
+      'infinity-booking/payments/process';
   static const String verifyPaymentEndpoint =
-      '/infinity-booking/payments/verify/{reference}';
+      'infinity-booking/payments/verify/{reference}';
   static const String paymentMethodsEndpoint =
-      '/infinity-booking/payments/methods';
+      'infinity-booking/payments/methods';
   static const String paymentHistoryEndpoint =
-      '/infinity-booking/payments/history';
+      'infinity-booking/payments/history';
 
-  // ✅ Review Endpoints
-  static const String reviewsEndpoint = '/infinity-booking/reviews';
+  // Review Endpoints
+  static const String reviewsEndpoint = 'infinity-booking/reviews';
   static const String serviceReviewsEndpoint =
-      '/infinity-booking/reviews/service/{serviceId}';
-  static const String userReviewsEndpoint = '/infinity-booking/reviews/user';
+      'infinity-booking/reviews/service/{serviceId}';
+  static const String userReviewsEndpoint = 'infinity-booking/reviews/user';
   static const String reviewHelpfulEndpoint =
-      '/infinity-booking/reviews/{id}/helpful';
+      'infinity-booking/reviews/{id}/helpful';
   static const String reviewStatisticsEndpoint =
-      '/infinity-booking/reviews/statistics/{serviceId}';
+      'infinity-booking/reviews/statistics/{serviceId}';
 
   // Storage Keys
   static const String tokenKey = 'auth_token';
@@ -131,7 +133,8 @@ class AppConstants {
       String? serviceId,
       String? subcategoryId,
       String? categoryId,
-      String? reference}) {
+      String? reference,
+      String? pid}) {
     var result = endpoint;
     if (id != null) result = result.replaceAll('{id}', id);
     if (serviceId != null) result = result.replaceAll('{serviceId}', serviceId);
@@ -140,31 +143,29 @@ class AppConstants {
     if (categoryId != null)
       result = result.replaceAll('{categoryId}', categoryId);
     if (reference != null) result = result.replaceAll('{reference}', reference);
+    if (pid != null) result = result.replaceAll('{pid}', pid); // ✅ Handle PID
     return result;
   }
 
-  // ✅ Build complete URL
+  // Build complete URL (not needed with proper endpoint handling)
   static String buildUrl(String endpoint) {
-    // Remove leading slash if endpoint already has it
     if (endpoint.startsWith('/')) {
       endpoint = endpoint.substring(1);
     }
     return '$baseUrl/$endpoint';
   }
 
-  // ✅ Get endpoint with query parameters
+  // Get endpoint with query parameters
   static String endpointWithQuery(
       String baseEndpoint, Map<String, dynamic>? queryParams) {
     if (queryParams == null || queryParams.isEmpty) {
       return baseEndpoint;
     }
-
     final queryString = queryParams.entries
         .where((entry) => entry.value != null)
         .map((entry) =>
             '${entry.key}=${Uri.encodeComponent(entry.value.toString())}')
         .join('&');
-
     return '$baseEndpoint?$queryString';
   }
 }
@@ -701,12 +702,3 @@ class AppDurations {
   static const Duration pageTransition = Duration(milliseconds: 250);
   static const Duration toastDuration = Duration(seconds: 3);
 }
-
-// ✨ Image Asset Paths
-/*class AppImages {
-  static const String logo = 'assets/images/logo.png';
-  static const String placeholder = 'assets/images/placeholder.png';
-  static const String noData = 'assets/images/no_data.png';
-  static const String error = 'assets/images/error.png';
-  static const String avatarPlaceholder = 'assets/images/avatar_placeholder.png';
-}*/

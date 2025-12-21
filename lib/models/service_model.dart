@@ -1,4 +1,4 @@
-// lib/models/service_model.dart - UPDATED WITH ALL FIELDS
+// lib/models/service_model.dart
 import 'dart:convert';
 
 class ServiceModel {
@@ -18,6 +18,7 @@ class ServiceModel {
   final int? totalBookings;
   final int? reviewCount;
   final String? serviceType;
+  final String? type;
   final List<dynamic> slots;
   final String? duration;
   final String? locationType;
@@ -33,18 +34,20 @@ class ServiceModel {
   final DateTime? updatedAt;
   final String? providerEmail;
   final String? providerPhone;
-  final String? providerPid;
+  final String? providerPid; // ✅ This MUST be the real PID (PROV-xxx)
   final List<dynamic>? weeklySchedule;
   final int? totalSlots;
   final int? availableSlots;
   final String? createdAtRaw;
   final String? updatedAtRaw;
-  final Map<String, dynamic>? providerData;
+  final Map<String, dynamic>? provider;
   final Map<String, dynamic>? categoryData;
   final List<dynamic>? reviews;
   final String? serviceId;
   final String? banner;
   final String? subcategoryName;
+  final Map<String, dynamic>? subcategory;
+  final List<Map<String, dynamic>>? subcategories;
   final bool? isActive;
   final bool? isAvailable;
   final String? locationAddress;
@@ -83,6 +86,7 @@ class ServiceModel {
     this.totalBookings,
     this.reviewCount,
     this.serviceType,
+    this.type,
     this.slots = const [],
     this.duration,
     this.locationType,
@@ -104,12 +108,14 @@ class ServiceModel {
     this.availableSlots,
     this.createdAtRaw,
     this.updatedAtRaw,
-    this.providerData,
+    this.provider,
     this.categoryData,
     this.reviews,
     this.serviceId,
     this.banner,
     this.subcategoryName,
+    this.subcategory,
+    this.subcategories,
     this.isActive,
     this.isAvailable,
     this.locationAddress,
@@ -132,44 +138,130 @@ class ServiceModel {
     this.statistics,
   });
 
-  // ✅ NEW: Safe provider name getter (critical for UI)
+  Map<String, dynamic>? get providerData => provider;
+
   String get displayProviderName {
-    if (providerName == null || providerName!.trim().isEmpty) {
-      return 'Service Provider';
+    if (providerName != null && providerName!.isNotEmpty) {
+      return providerName!;
     }
-    return providerName!;
+
+    if (provider != null && provider!.isNotEmpty) {
+      final fullname = provider!['fullname']?.toString();
+      if (fullname != null && fullname.isNotEmpty) return fullname;
+
+      final name = provider!['name']?.toString();
+      if (name != null && name.isNotEmpty) return name;
+
+      final businessName = provider!['businessName']?.toString();
+      if (businessName != null && businessName.isNotEmpty) return businessName;
+
+      final firstName = provider!['firstName']?.toString();
+      final lastName = provider!['lastName']?.toString();
+      if (firstName != null && lastName != null) {
+        return '$firstName $lastName';
+      }
+
+      final username = provider!['username']?.toString();
+      if (username != null && username.isNotEmpty) return username;
+    }
+
+    if (providerPid != null && providerPid!.isNotEmpty) {
+      return 'Provider $providerPid';
+    }
+
+    if (providerId != null && providerId!.isNotEmpty) {
+      return 'Provider $providerId';
+    }
+
+    return 'Service Provider';
   }
 
-  // Getter for formatted price
+  String get providerInitials {
+    final name = displayProviderName;
+    if (name == 'Service Provider') return 'SP';
+    final parts = name.split(' ').where((part) => part.isNotEmpty).toList();
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    } else if (name.length >= 2) {
+      return name.substring(0, 2).toUpperCase();
+    }
+    return name.isNotEmpty ? name[0].toUpperCase() : 'SP';
+  }
+
+  bool get hasProviderContactInfo {
+    return (providerEmail?.isNotEmpty == true) ||
+        (providerPhone?.isNotEmpty == true);
+  }
+
+  String? get providerContactInfo {
+    final contacts = <String>[];
+    if (providerEmail?.isNotEmpty == true) contacts.add(providerEmail!);
+    if (providerPhone?.isNotEmpty == true) contacts.add(providerPhone!);
+    return contacts.isNotEmpty ? contacts.join(' • ') : null;
+  }
+
+  double? get providerRating {
+    if (provider != null) {
+      final rating = provider!['rating'];
+      if (rating is num) return rating.toDouble();
+      if (rating is String) {
+        try {
+          return double.parse(rating);
+        } catch (_) {
+          return null;
+        }
+      }
+    }
+    return null;
+  }
+
+  bool get isProviderVerified {
+    if (provider != null) {
+      final verified = provider!['isVerified'];
+      if (verified is bool) return verified;
+      if (verified is String) {
+        return verified.toLowerCase() == 'true';
+      }
+    }
+    return false;
+  }
+
   String get formattedPrice {
     final unit = priceUnit?.toUpperCase() ?? 'ETB';
-    return '$price $unit';
+    return '${price.toStringAsFixed(2)} $unit';
   }
 
-  // Getter for total price (service + booking)
-  double get totalPrice {
-    return price + (bookingPrice ?? 0);
-  }
+  double get totalPrice => price + (bookingPrice ?? 0);
 
-  // Getter for formatted total price
   String get formattedTotalPrice {
     final unit = priceUnit?.toUpperCase() ?? 'ETB';
     return '${totalPrice.toStringAsFixed(2)} $unit';
   }
 
-  // Getter for availability status based on slots
   String get availabilityStatus {
-    final available = availableSlots ?? getAvailableSlotsCount();
+    final available = getAvailableSlotsCount();
     if (available == 0) return 'No Slots';
     if (available < 3) return 'Limited';
     if (available < 10) return 'Available';
     return 'Plenty Available';
   }
 
-  // Helper method to count available slots
+  String get availabilityClass {
+    final available = getAvailableSlotsCount();
+    if (available == 0) return 'unavailable';
+    if (available < 3) return 'limited';
+    return 'available';
+  }
+
+  String get availabilityColor {
+    final available = getAvailableSlotsCount();
+    if (available == 0) return '#ef4444';
+    if (available < 3) return '#f59e0b';
+    return '#10b981';
+  }
+
   int getAvailableSlotsCount() {
     if (slots.isEmpty) return 0;
-
     int count = 0;
     for (var slot in slots) {
       if (slot is Map<String, dynamic>) {
@@ -179,12 +271,13 @@ class ServiceModel {
             if (day is Map && (day['isWorkingDay'] == true)) {
               final timeSlots = day['timeSlots'] as List?;
               if (timeSlots != null) {
-                count += timeSlots
-                    .where((ts) =>
-                        ts is Map &&
-                        (ts['isAvailable'] == true) &&
-                        (ts['isBooked'] != true))
-                    .length;
+                for (var ts in timeSlots) {
+                  if (ts is Map) {
+                    final isAvailable = ts['isAvailable'] == true;
+                    final isBooked = ts['isBooked'] == true;
+                    if (isAvailable && !isBooked) count++;
+                  }
+                }
               }
             }
           }
@@ -194,28 +287,24 @@ class ServiceModel {
     return count;
   }
 
-  // Getter for working days count
   int get workingDaysCount {
     if (slots.isEmpty) return 0;
-
     int count = 0;
     for (var slot in slots) {
       if (slot is Map<String, dynamic>) {
         final weeklySchedule = slot['weeklySchedule'] as List?;
         if (weeklySchedule != null) {
-          count += weeklySchedule
-              .where((day) => day is Map && (day['isWorkingDay'] == true))
-              .length;
+          for (var day in weeklySchedule) {
+            if (day is Map && (day['isWorkingDay'] == true)) count++;
+          }
         }
       }
     }
     return count;
   }
 
-  // Getter for total time slots
   int get totalTimeSlots {
     if (slots.isEmpty) return 0;
-
     int count = 0;
     for (var slot in slots) {
       if (slot is Map<String, dynamic>) {
@@ -233,78 +322,165 @@ class ServiceModel {
     return count;
   }
 
-  // Getter for service type formatted
-  String get formattedServiceType {
-    if (serviceType == null || serviceType!.isEmpty) return 'Standard';
-    return serviceType![0].toUpperCase() + serviceType!.substring(1);
+  DateTime? get nextAvailableDate {
+    if (slots.isEmpty) return null;
+    try {
+      final now = DateTime.now();
+      for (var slot in slots) {
+        if (slot is Map<String, dynamic>) {
+          final weeklySchedule = slot['weeklySchedule'] as List?;
+          if (weeklySchedule != null) {
+            for (var day in weeklySchedule) {
+              if (day is Map && (day['isWorkingDay'] == true)) {
+                final timeSlots = day['timeSlots'] as List?;
+                if (timeSlots != null && timeSlots.isNotEmpty) {
+                  return now.add(const Duration(days: 1));
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('Error getting next available date: $e');
+    }
+    return null;
   }
 
-  // Factory method to parse JSON
-  factory ServiceModel.fromJson(Map<String, dynamic> json) {
-    Map<String, dynamic> serviceData;
+  String get formattedServiceType {
+    final typeToFormat = type ?? serviceType;
+    if (typeToFormat == null || typeToFormat.isEmpty) return 'Standard';
+    return typeToFormat[0].toUpperCase() + typeToFormat.substring(1);
+  }
 
-    // Check if service data is nested under 'service' key
-    if (json.containsKey('service') &&
-        json['service'] is Map<String, dynamic>) {
-      serviceData = Map<String, dynamic>.from(json['service']);
+  List<String> get subcategoryNames {
+    final names = <String>{};
+    if (subcategories != null) {
+      for (var sub in subcategories!) {
+        final name = sub['name'] ?? sub['title'];
+        if (name != null && name.toString().isNotEmpty)
+          names.add(name.toString());
+      }
+    }
+    if (subcategory != null) {
+      final name = subcategory!['name'] ?? subcategory!['title'];
+      if (name != null && name.toString().isNotEmpty)
+        names.add(name.toString());
+    }
+    if (subcategoryName != null && subcategoryName!.isNotEmpty) {
+      names.add(subcategoryName!);
+    }
+    return names.toList();
+  }
+
+  String get displayCategoryName {
+    if (categoryName != null && categoryName!.isNotEmpty) return categoryName!;
+    if (categoryData != null) {
+      final name = categoryData!['name'] ?? categoryData!['title'];
+      if (name != null && name.toString().isNotEmpty) return name.toString();
+    }
+    return 'Uncategorized';
+  }
+
+  bool isAvailableForBooking() {
+    if (status?.toLowerCase() != 'published' &&
+        status?.toLowerCase() != 'active') {
+      return false;
+    }
+    if (isActive == false || isAvailable == false) {
+      return false;
+    }
+    return getAvailableSlotsCount() > 0;
+  }
+
+  String get statusColor {
+    final statusLower = status?.toLowerCase() ?? 'published';
+    switch (statusLower) {
+      case 'published':
+      case 'active':
+        return '#10b981';
+      case 'draft':
+        return '#f59e0b';
+      case 'archived':
+      case 'suspended':
+      case 'inactive':
+        return '#ef4444';
+      default:
+        return '#6b7280';
+    }
+  }
+
+  String get formattedCreatedAt {
+    if (createdAt == null) return 'Unknown';
+    final now = DateTime.now();
+    final difference = now.difference(createdAt!);
+    if (difference.inDays > 30) {
+      return '${(difference.inDays / 30).floor()} months ago';
+    } else if (difference.inDays > 0) {
+      return '${difference.inDays} days ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} hours ago';
     } else {
-      serviceData = json;
+      return 'Just now';
+    }
+  }
+
+  factory ServiceModel.fromJson(Map<String, dynamic> json) {
+    Map<String, dynamic> serviceData =
+        json.containsKey('service') && json['service'] is Map<String, dynamic>
+            ? Map<String, dynamic>.from(json['service'])
+            : json;
+
+    Map<String, dynamic>? providerMap;
+    if (serviceData['provider'] is Map<String, dynamic>) {
+      providerMap = Map<String, dynamic>.from(serviceData['provider']);
+    } else if (json['provider'] is Map<String, dynamic>) {
+      providerMap = Map<String, dynamic>.from(json['provider']);
     }
 
-    // Extract provider information from various possible locations
     String? providerName;
     String? providerId;
     String? providerEmail;
     String? providerPhone;
-    String? providerPid;
-    Map<String, dynamic>? providerData;
+    String? providerPid; // ✅ This should ONLY come from 'pid' field
 
-    // Method 1: Check if provider is a Map with details
-    if (serviceData['provider'] is Map<String, dynamic>) {
-      final provider = serviceData['provider'];
-      providerName = provider['fullname'] ??
-          provider['name'] ??
-          provider['businessName'] ??
-          provider['username'] ??
-          (provider['firstName'] != null && provider['lastName'] != null
-              ? '${provider['firstName']} ${provider['lastName']}'
+    // 🔥 ALWAYS prioritize embedded provider object if available
+    if (providerMap != null) {
+      providerName = providerMap['fullname'] ??
+          providerMap['name'] ??
+          providerMap['businessName'] ??
+          providerMap['username'] ??
+          (providerMap['firstName'] != null && providerMap['lastName'] != null
+              ? '${providerMap['firstName']} ${providerMap['lastName']}'
               : null);
-      providerId = provider['id']?.toString() ??
-          provider['_id']?.toString() ??
-          provider['providerId']?.toString();
-      providerEmail = provider['email']?.toString();
-      providerPhone = provider['phone']?.toString();
-      providerPid = provider['pid']?.toString();
-      providerData = provider;
+      providerEmail = providerMap['email']?.toString();
+      providerPhone = providerMap['phone']?.toString();
+      providerId = providerMap['id']?.toString() ??
+          providerMap['_id']?.toString() ??
+          providerMap['providerId']?.toString();
+      providerPid = providerMap['pid']?.toString()?.trim(); // ✅ CRITICAL
+    } else {
+      // Fallback to top-level fields (used in service list responses)
+      providerName = serviceData['providerName']?.toString();
+      providerEmail = serviceData['providerEmail']?.toString();
+      providerPhone = serviceData['providerPhone']?.toString();
+      providerId = serviceData['providerId']?.toString();
+      providerPid = serviceData['providerPid']?.toString();
     }
 
-    // Method 2: Check if providerName is directly in serviceData
-    if (providerName == null && serviceData['providerName'] != null) {
-      providerName = serviceData['providerName'].toString();
+    Map<String, dynamic>? subcategoryMap;
+    if (serviceData['subcategory'] is Map<String, dynamic>) {
+      subcategoryMap = Map<String, dynamic>.from(serviceData['subcategory']);
     }
 
-    // Method 3: Check if provider info is at root level
-    if (providerName == null && json['provider'] is Map<String, dynamic>) {
-      final provider = json['provider'];
-      providerName = provider['fullname'] ??
-          provider['name'] ??
-          provider['businessName'] ??
-          provider['username'] ??
-          (provider['firstName'] != null && provider['lastName'] != null
-              ? '${provider['firstName']} ${provider['lastName']}'
-              : null);
-      providerId = provider['id']?.toString() ?? provider['_id']?.toString();
-      providerEmail = provider['email']?.toString();
-      providerPhone = provider['phone']?.toString();
-      providerPid = provider['pid']?.toString();
+    List<Map<String, dynamic>>? subcategoriesList;
+    if (serviceData['subcategories'] is List) {
+      subcategoriesList = (serviceData['subcategories'] as List)
+          .whereType<Map<String, dynamic>>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
     }
 
-    // Method 4: Fallback to placeholder
-    if (providerName == null) {
-      providerName = 'Service Provider';
-    }
-
-    // Extract subcategory IDs - handle various formats
     List<String> subcategoryIds = [];
     if (serviceData['subcategoryIds'] is List) {
       subcategoryIds = (serviceData['subcategoryIds'] as List)
@@ -318,52 +494,27 @@ class ServiceModel {
       }
     }
 
-    // Parse slots data
     List<dynamic> slots = [];
     if (serviceData['slots'] is List) {
-      slots = serviceData['slots'];
+      slots = _parseSlots(serviceData['slots'] as List);
     }
 
-    // Parse date fields
-    DateTime? createdAt;
-    DateTime? updatedAt;
+    DateTime? createdAt = _parseMongoDBDate(serviceData['createdAt']);
+    DateTime? updatedAt = _parseMongoDBDate(serviceData['updatedAt']);
 
-    try {
-      if (serviceData['createdAt'] != null) {
-        if (serviceData['createdAt'] is String) {
-          createdAt = DateTime.parse(serviceData['createdAt']);
-        } else if (serviceData['createdAt'] is Map) {
-          final dateMap = serviceData['createdAt'] as Map;
-          if (dateMap['\$date'] != null) {
-            createdAt = DateTime.parse(dateMap['\$date'].toString());
-          }
-        }
-      }
-
-      if (serviceData['updatedAt'] != null) {
-        if (serviceData['updatedAt'] is String) {
-          updatedAt = DateTime.parse(serviceData['updatedAt']);
-        } else if (serviceData['updatedAt'] is Map) {
-          final dateMap = serviceData['updatedAt'] as Map;
-          if (dateMap['\$date'] != null) {
-            updatedAt = DateTime.parse(dateMap['\$date'].toString());
-          }
-        }
-      }
-    } catch (e) {
-      print('Error parsing dates: $e');
-    }
-
-    // Parse metadata if available
     Map<String, dynamic>? metadata;
     if (serviceData['metadata'] is Map) {
       metadata = Map<String, dynamic>.from(serviceData['metadata']);
     }
 
-    // Parse statistics if available
     Map<String, dynamic>? statistics;
     if (serviceData['statistics'] is Map) {
       statistics = Map<String, dynamic>.from(serviceData['statistics']);
+    }
+
+    Map<String, dynamic>? categoryDataMap;
+    if (serviceData['category'] is Map) {
+      categoryDataMap = Map<String, dynamic>.from(serviceData['category']);
     }
 
     return ServiceModel(
@@ -390,8 +541,8 @@ class ServiceModel {
       providerId: providerId,
       providerEmail: providerEmail,
       providerPhone: providerPhone,
-      providerPid: providerPid,
-      providerData: providerData,
+      providerPid: providerPid, // ✅ Now only contains real PID or null
+      provider: providerMap,
       imageUrl: _parseImageUrl(serviceData),
       paymentMethod: serviceData['paymentMethod']?.toString(),
       priceUnit: serviceData['priceUnit']?.toString() ?? 'ETB',
@@ -402,6 +553,7 @@ class ServiceModel {
       reviewCount:
           _parseInt(serviceData['reviewCount'] ?? serviceData['totalReviews']),
       serviceType: serviceData['serviceType']?.toString(),
+      type: serviceData['type']?.toString(),
       slots: slots,
       duration: serviceData['duration']?.toString(),
       locationType: serviceData['locationType']?.toString(),
@@ -413,9 +565,7 @@ class ServiceModel {
       categoryName: serviceData['categoryName']?.toString() ??
           serviceData['category']?['name']?.toString() ??
           serviceData['category']?['title']?.toString(),
-      categoryData: serviceData['category'] is Map
-          ? Map<String, dynamic>.from(serviceData['category'])
-          : null,
+      categoryData: categoryDataMap,
       rating:
           _parseDouble(serviceData['rating'] ?? serviceData['averageRating']),
       pricingNotes: serviceData['pricingNotes']?.toString(),
@@ -433,6 +583,8 @@ class ServiceModel {
       subcategoryName: serviceData['subcategoryName']?.toString() ??
           serviceData['subcategory']?['name']?.toString() ??
           serviceData['subcategory']?['title']?.toString(),
+      subcategory: subcategoryMap,
+      subcategories: subcategoriesList,
       isActive: serviceData['isActive'] == true,
       isAvailable: serviceData['isAvailable'] == true,
       locationAddress: serviceData['locationAddress']?.toString(),
@@ -464,7 +616,93 @@ class ServiceModel {
     );
   }
 
-  // Convert to JSON
+  static DateTime? _parseMongoDBDate(dynamic dateValue) {
+    if (dateValue == null) return null;
+    try {
+      if (dateValue is String) {
+        return DateTime.parse(dateValue);
+      } else if (dateValue is Map) {
+        final dateMap = dateValue as Map<String, dynamic>;
+        if (dateMap['\$date'] != null) {
+          final dateStr = dateMap['\$date'].toString();
+          return DateTime.parse(dateStr);
+        }
+      }
+    } catch (e) {
+      print('Error parsing date: $e');
+    }
+    return null;
+  }
+
+  static List<dynamic> _parseSlots(List<dynamic> slotsData) {
+    final parsedSlots = <dynamic>[];
+    for (var slot in slotsData) {
+      if (slot is Map<String, dynamic>) {
+        final parsedSlot = Map<String, dynamic>.from(slot);
+        if (parsedSlot['weeklySchedule'] is List) {
+          final weeklySchedule = parsedSlot['weeklySchedule'] as List;
+          final parsedWeeklySchedule = <Map<String, dynamic>>[];
+          for (var day in weeklySchedule) {
+            if (day is Map<String, dynamic>) {
+              final parsedDay = Map<String, dynamic>.from(day);
+              if (parsedDay['timeSlots'] is List) {
+                final timeSlots = parsedDay['timeSlots'] as List;
+                final parsedTimeSlots = <Map<String, dynamic>>[];
+                for (var timeSlot in timeSlots) {
+                  if (timeSlot is Map<String, dynamic>) {
+                    parsedTimeSlots.add(Map<String, dynamic>.from(timeSlot));
+                  }
+                }
+                parsedDay['timeSlots'] = parsedTimeSlots;
+              }
+              parsedWeeklySchedule.add(parsedDay);
+            }
+          }
+          parsedSlot['weeklySchedule'] = parsedWeeklySchedule;
+        }
+        parsedSlots.add(parsedSlot);
+      }
+    }
+    return parsedSlots;
+  }
+
+  static String? _parseImageUrl(Map<String, dynamic> data) {
+    final banner = data['banner']?.toString()?.trim();
+    final imageUrl = data['imageUrl']?.toString()?.trim();
+    final image = data['image']?.toString()?.trim();
+    final thumbnail = data['thumbnail']?.toString()?.trim();
+    final coverImage = data['coverImage']?.toString()?.trim();
+    return banner ?? imageUrl ?? image ?? thumbnail ?? coverImage;
+  }
+
+  static double _parseDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) {
+      try {
+        return double.parse(value.replaceAll(',', ''));
+      } catch (_) {
+        return 0.0;
+      }
+    }
+    return 0.0;
+  }
+
+  static int _parseInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) {
+      try {
+        return int.parse(value.replaceAll(',', ''));
+      } catch (_) {
+        return 0;
+      }
+    }
+    return 0;
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -476,9 +714,6 @@ class ServiceModel {
       'subcategoryIds': subcategoryIds,
       'providerName': providerName,
       'providerId': providerId,
-      'providerEmail': providerEmail,
-      'providerPhone': providerPhone,
-      'providerPid': providerPid,
       'imageUrl': imageUrl,
       'paymentMethod': paymentMethod,
       'priceUnit': priceUnit,
@@ -487,6 +722,7 @@ class ServiceModel {
       'totalBookings': totalBookings,
       'reviewCount': reviewCount,
       'serviceType': serviceType,
+      'type': type,
       'slots': slots,
       'duration': duration,
       'locationType': locationType,
@@ -500,13 +736,19 @@ class ServiceModel {
       'pricingNotes': pricingNotes,
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
-      'providerData': providerData,
-      'categoryData': categoryData,
+      'providerEmail': providerEmail,
+      'providerPhone': providerPhone,
+      'providerPid': providerPid,
       'weeklySchedule': weeklySchedule,
       'totalSlots': totalSlots,
       'availableSlots': availableSlots,
+      'provider': provider,
+      'categoryData': categoryData,
+      'reviews': reviews,
       'banner': banner,
       'subcategoryName': subcategoryName,
+      'subcategory': subcategory,
+      'subcategories': subcategories,
       'isActive': isActive,
       'isAvailable': isAvailable,
       'locationAddress': locationAddress,
@@ -530,48 +772,6 @@ class ServiceModel {
     };
   }
 
-  // Helper method to parse image URL
-  static String? _parseImageUrl(Map<String, dynamic> data) {
-    final banner = data['banner']?.toString()?.trim();
-    final imageUrl = data['imageUrl']?.toString()?.trim();
-    final image = data['image']?.toString()?.trim();
-    final thumbnail = data['thumbnail']?.toString()?.trim();
-    final coverImage = data['coverImage']?.toString()?.trim();
-
-    return banner ?? imageUrl ?? image ?? thumbnail ?? coverImage;
-  }
-
-  // Helper method to parse double
-  static double _parseDouble(dynamic value) {
-    if (value == null) return 0.0;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) {
-      try {
-        return double.parse(value.replaceAll(',', ''));
-      } catch (_) {
-        return 0.0;
-      }
-    }
-    return 0.0;
-  }
-
-  // Helper method to parse integer
-  static int _parseInt(dynamic value) {
-    if (value == null) return 0;
-    if (value is int) return value;
-    if (value is double) return value.toInt();
-    if (value is String) {
-      try {
-        return int.parse(value.replaceAll(',', ''));
-      } catch (_) {
-        return 0;
-      }
-    }
-    return 0;
-  }
-
-  // Create a copy with updated fields
   ServiceModel copyWith({
     String? id,
     String? name,
@@ -589,6 +789,7 @@ class ServiceModel {
     int? totalBookings,
     int? reviewCount,
     String? serviceType,
+    String? type,
     List<dynamic>? slots,
     String? duration,
     String? locationType,
@@ -610,12 +811,14 @@ class ServiceModel {
     int? availableSlots,
     String? createdAtRaw,
     String? updatedAtRaw,
-    Map<String, dynamic>? providerData,
+    Map<String, dynamic>? provider,
     Map<String, dynamic>? categoryData,
     List<dynamic>? reviews,
     String? serviceId,
     String? banner,
     String? subcategoryName,
+    Map<String, dynamic>? subcategory,
+    List<Map<String, dynamic>>? subcategories,
     bool? isActive,
     bool? isAvailable,
     String? locationAddress,
@@ -654,6 +857,7 @@ class ServiceModel {
       totalBookings: totalBookings ?? this.totalBookings,
       reviewCount: reviewCount ?? this.reviewCount,
       serviceType: serviceType ?? this.serviceType,
+      type: type ?? this.type,
       slots: slots ?? this.slots,
       duration: duration ?? this.duration,
       locationType: locationType ?? this.locationType,
@@ -675,12 +879,14 @@ class ServiceModel {
       availableSlots: availableSlots ?? this.availableSlots,
       createdAtRaw: createdAtRaw ?? this.createdAtRaw,
       updatedAtRaw: updatedAtRaw ?? this.updatedAtRaw,
-      providerData: providerData ?? this.providerData,
+      provider: provider ?? this.provider,
       categoryData: categoryData ?? this.categoryData,
       reviews: reviews ?? this.reviews,
       serviceId: serviceId ?? this.serviceId,
       banner: banner ?? this.banner,
       subcategoryName: subcategoryName ?? this.subcategoryName,
+      subcategory: subcategory ?? this.subcategory,
+      subcategories: subcategories ?? this.subcategories,
       isActive: isActive ?? this.isActive,
       isAvailable: isAvailable ?? this.isAvailable,
       locationAddress: locationAddress ?? this.locationAddress,
@@ -708,84 +914,18 @@ class ServiceModel {
     );
   }
 
-  // Method to check if service is available for booking
-  bool isAvailableForBooking() {
-    if (status?.toLowerCase() != 'published' &&
-        status?.toLowerCase() != 'active') {
-      return false;
-    }
-
-    if (isActive == false || isAvailable == false) {
-      return false;
-    }
-
-    return getAvailableSlotsCount() > 0;
-  }
-
-  // Method to get service duration in minutes
-  int? getDurationInMinutes() {
-    if (duration == null) return null;
-
-    final durationStr = duration!.toLowerCase();
-    if (durationStr.contains('hour')) {
-      final match = RegExp(r'(\d+)').firstMatch(durationStr);
-      if (match != null) {
-        return int.parse(match.group(1)!) * 60;
-      }
-    } else if (durationStr.contains('min')) {
-      final match = RegExp(r'(\d+)').firstMatch(durationStr);
-      if (match != null) {
-        return int.parse(match.group(1)!);
-      }
-    }
-
-    return null;
-  }
-
-  // Method to get all service images
-  List<String> getAllImages() {
-    final images = <String>[];
-
-    if (imageUrl != null && imageUrl!.isNotEmpty) {
-      images.add(imageUrl!);
-    }
-
-    if (banner != null && banner!.isNotEmpty && !images.contains(banner)) {
-      images.add(banner!);
-    }
-
-    if (serviceImages != null) {
-      for (var img in serviceImages!) {
-        if (img is String && img.isNotEmpty && !images.contains(img)) {
-          images.add(img);
-        } else if (img is Map && img['url'] is String) {
-          final url = img['url'] as String;
-          if (url.isNotEmpty && !images.contains(url)) {
-            images.add(url);
-          }
-        }
-      }
-    }
-
-    return images;
-  }
-
-  // Method to get service tags as list of strings
-  List<String> getServiceTags() {
-    if (serviceTags == null) return [];
-
-    return serviceTags!
-        .map((tag) {
-          if (tag is String) return tag;
-          if (tag is Map && tag['name'] is String) return tag['name'] as String;
-          return tag.toString();
-        })
-        .where((tag) => tag.isNotEmpty)
-        .toList();
+  @override
+  String toString() {
+    return 'ServiceModel{id: $id, name: $name, providerName: $providerName, providerPid: $providerPid}';
   }
 
   @override
-  String toString() {
-    return 'ServiceModel{id: $id, name: $name, price: $price, provider: $providerName, availableSlots: ${getAvailableSlotsCount()}}';
-  }
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ServiceModel &&
+          runtimeType == other.runtimeType &&
+          id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 }

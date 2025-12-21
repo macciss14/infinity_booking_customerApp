@@ -116,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Hello, $userName! 👋',
+                    Text('Hello, $userName! ',
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,

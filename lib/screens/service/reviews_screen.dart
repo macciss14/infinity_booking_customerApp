@@ -1,3 +1,4 @@
+// lib/screens/service/reviews_screen.dart
 import 'package:flutter/material.dart';
 import '../../models/review_model.dart';
 import '../../services/review_service.dart';
@@ -29,38 +30,59 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
     setState(() => _loading = true);
     try {
       _reviews = await _reviewService.getServiceReviews(widget.serviceId);
-      
-      // Calculate statistics
+
       _totalReviews = _reviews.length;
       if (_reviews.isNotEmpty) {
-        final total = _reviews.fold(0.0, (sum, review) => sum + (review.rating ?? 0));
+        final total =
+            _reviews.fold(0.0, (sum, review) => sum + (review.rating ?? 0));
         _averageRating = total / _reviews.length;
-        _fiveStarCount = _reviews.where((review) => (review.rating ?? 0).round() == 5).length;
+        _fiveStarCount = _reviews
+            .where((review) => (review.rating ?? 0).round() == 5)
+            .length;
       }
     } catch (error) {
       print('Error loading reviews: $error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load reviews. Please try again.')),
+      );
     } finally {
       setState(() => _loading = false);
     }
   }
 
+  // 🔥 ENHANCED: Match Vue.js date formatting (DD/MM/YYYY HH:MM)
   String _formatDate(DateTime? date) {
     if (date == null) return 'Unknown';
-    return '${date.day}/${date.month}/${date.year}';
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} '
+        '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 
+  // 🔥 ENHANCED: Match Vue.js getInitials() exactly
   String _getInitials(String name) {
     if (name.isEmpty) return '?';
-    final parts = name.split(' ');
-    return parts.map((p) => p.isNotEmpty ? p[0] : '').join('').toUpperCase();
+    final parts = name.split(' ').where((part) => part.isNotEmpty).toList();
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return name.length >= 2
+        ? name.substring(0, 2).toUpperCase()
+        : name.toUpperCase();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Service Reviews'),
+        title: Text('Service Reviews ($_totalReviews)'),
         backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        actions: [
+          if (!_loading)
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _loadReviews,
+            ),
+        ],
       ),
       body: _loading
           ? Center(child: CircularProgressIndicator())
@@ -88,10 +110,10 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                   ),
                 )
               : SingleChildScrollView(
-                  padding: EdgeInsets.all(16),
+                  padding: EdgeInsets.all(AppConstants.defaultPadding),
                   child: Column(
                     children: [
-                      // Statistics Card
+                      // 🔥 Statistics Card (Vue-matching)
                       Card(
                         child: Padding(
                           padding: EdgeInsets.all(16),
@@ -100,7 +122,9 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                             children: [
                               _buildStatItem(
                                 'Average Rating',
-                                '${_averageRating.toStringAsFixed(1)}/5',
+                                _averageRating > 0
+                                    ? '${_averageRating.toStringAsFixed(1)}/5'
+                                    : 'N/A',
                                 Colors.amber,
                               ),
                               _buildStatItem(
@@ -119,7 +143,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                       ),
                       SizedBox(height: 20),
 
-                      // Reviews List
+                      // 🔥 Reviews List (Vue-matching provider responses)
                       ListView.builder(
                         shrinkWrap: true,
                         physics: NeverScrollableScrollPhysics(),
@@ -175,7 +199,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
+            // 🔥 Header (Vue-matching avatar and info)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -185,10 +209,12 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                       radius: 20,
                       backgroundColor: AppColors.primary,
                       child: Text(
-                        _getInitials(review.customerName ?? 'Anonymous'),
+                        _getInitials(
+                            review.getReviewerName()), // ✅ Use model helper
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
+                          fontSize: 14,
                         ),
                       ),
                     ),
@@ -197,7 +223,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          review.customerName ?? 'Anonymous User',
+                          review.getReviewerName(), // ✅ Use model helper
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                           ),
@@ -238,23 +264,32 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
             ),
             SizedBox(height: 12),
 
-            // Comment
+            // 🔥 Comment with Vue fallback
             Text(
               review.comment ?? 'No comment provided.',
               style: TextStyle(
                 fontSize: 15,
                 height: 1.5,
+                color: Colors.grey[800],
               ),
             ),
             SizedBox(height: 12),
 
-            // Provider Response
-            if (review.response != null)
+            // 🔥 Provider Response (EXACTLY LIKE VUE)
+            if (review.hasProviderResponse)
               Container(
                 padding: EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(8),
+                  border: Border(
+                      left: BorderSide(
+                          color: const Color.fromARGB(255, 86, 170, 239),
+                          width: 3)),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(4),
+                    topRight: Radius.circular(4),
+                    bottomRight: Radius.circular(4),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -266,7 +301,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                           'Provider Response',
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
-                            color: Colors.blue[700],
+                            color: Colors.blue[800],
                             fontSize: 12,
                           ),
                         ),
@@ -293,7 +328,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                 ),
               ),
 
-            // Footer
+            // 🔥 Footer (Vue-matching helpful count and status)
             SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -323,7 +358,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    review.status?.toUpperCase() ?? '',
+                    review.status?.toUpperCase() ?? 'PUBLISHED',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,

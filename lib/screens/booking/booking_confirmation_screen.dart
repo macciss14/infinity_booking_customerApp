@@ -1,5 +1,7 @@
+// lib/screens/booking/booking_confirmation_screen.dart
 import 'package:flutter/material.dart';
 import '../../models/booking_model.dart';
+import '../../utils/constants.dart';
 
 class BookingConfirmationScreen extends StatelessWidget {
   final BookingModel booking;
@@ -16,12 +18,20 @@ class BookingConfirmationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: Text(skipPayment ? 'Booking Created' : 'Booking Confirmed'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(24),
+        padding: EdgeInsets.all(AppConstants.defaultPadding),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SizedBox(height: 60),
+            const SizedBox(height: 24),
 
             // Success Icon
             Container(
@@ -37,7 +47,7 @@ class BookingConfirmationScreen extends StatelessWidget {
                 color: Colors.green,
               ),
             ),
-            SizedBox(height: 24),
+            const SizedBox(height: 24),
 
             // Title
             Text(
@@ -48,7 +58,7 @@ class BookingConfirmationScreen extends StatelessWidget {
                 color: Colors.green,
               ),
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
 
             // Subtitle
             Text(
@@ -62,7 +72,7 @@ class BookingConfirmationScreen extends StatelessWidget {
                 height: 1.5,
               ),
             ),
-            SizedBox(height: 40),
+            const SizedBox(height: 32),
 
             // Booking Details Card
             Card(
@@ -73,11 +83,13 @@ class BookingConfirmationScreen extends StatelessWidget {
               child: Padding(
                 padding: EdgeInsets.all(20),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Booking Reference
                     if (booking.bookingReference != null)
                       Container(
-                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(
                           color: Colors.blue[50],
                           borderRadius: BorderRadius.circular(8),
@@ -86,7 +98,7 @@ class BookingConfirmationScreen extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(Icons.receipt, color: Colors.blue, size: 16),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Text(
                               'Booking ID: ${booking.bookingReference}',
                               style: TextStyle(
@@ -97,41 +109,57 @@ class BookingConfirmationScreen extends StatelessWidget {
                           ],
                         ),
                       ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
                     // Service Details
                     _buildDetailRow(
+                      context: context,
                       icon: Icons.build,
                       label: 'Service',
                       value: booking.serviceName,
                     ),
                     _buildDetailRow(
+                      context: context,
                       icon: Icons.person,
                       label: 'Provider',
                       value: booking.providerName,
                     ),
+                    // 🔥 NEW: Show Provider ID (matches Vue.js)
+                    if (booking.providerId != null) ...[
+                      _buildDetailRow(
+                        context: context,
+                        icon: Icons.person_outline,
+                        label: 'Provider ID',
+                        value: booking.providerId!,
+                      ),
+                    ],
                     _buildDetailRow(
+                      context: context,
                       icon: Icons.calendar_today,
                       label: 'Date',
                       value: booking.formattedBookingDate,
                     ),
                     _buildDetailRow(
+                      context: context,
                       icon: Icons.schedule,
                       label: 'Time',
                       value: booking.formattedTimeRange,
                     ),
                     _buildDetailRow(
+                      context: context,
                       icon: Icons.payment,
                       label: 'Amount',
-                      value: '${booking.totalAmount.toStringAsFixed(2)} ${booking.currency}',
+                      value:
+                          '${booking.totalAmount.toStringAsFixed(2)} ${booking.currency}',
                     ),
                     _buildDetailRow(
+                      context: context,
                       icon: Icons.star,
                       label: 'Status',
                       value: booking.status.toUpperCase(),
-                      valueColor: Color(int.parse(booking.statusColor.replaceAll('#', '0xFF'))),
+                      valueColor: _getStatusColor(booking.status),
                     ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
                     // Payment Status
                     if (skipPayment)
@@ -144,8 +172,9 @@ class BookingConfirmationScreen extends StatelessWidget {
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.warning, color: Colors.orange[800], size: 20),
-                            SizedBox(width: 12),
+                            Icon(Icons.warning,
+                                color: Colors.orange[800], size: 20),
+                            const SizedBox(width: 12),
                             Expanded(
                               child: Text(
                                 'Payment Pending - Please complete payment before the service date',
@@ -168,8 +197,9 @@ class BookingConfirmationScreen extends StatelessWidget {
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.check_circle, color: Colors.green[800], size: 20),
-                            SizedBox(width: 12),
+                            Icon(Icons.check_circle,
+                                color: Colors.green[800], size: 20),
+                            const SizedBox(width: 12),
                             Expanded(
                               child: Text(
                                 'Payment Successful',
@@ -187,7 +217,7 @@ class BookingConfirmationScreen extends StatelessWidget {
                 ),
               ),
             ),
-            SizedBox(height: 40),
+            const SizedBox(height: 32),
 
             // Action Buttons
             Column(
@@ -204,13 +234,13 @@ class BookingConfirmationScreen extends StatelessWidget {
                       );
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).primaryColor,
+                      backgroundColor: AppColors.primary,
                       padding: EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: Text(
+                    child: const Text(
                       'View My Bookings',
                       style: TextStyle(
                         fontSize: 16,
@@ -220,7 +250,7 @@ class BookingConfirmationScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton(
@@ -233,12 +263,14 @@ class BookingConfirmationScreen extends StatelessWidget {
                       );
                     },
                     style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: BorderSide(color: AppColors.primary),
                       padding: EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: Text(
+                    child: const Text(
                       'Back to Home',
                       style: TextStyle(
                         fontSize: 16,
@@ -250,7 +282,7 @@ class BookingConfirmationScreen extends StatelessWidget {
               ],
             ),
 
-            SizedBox(height: 60),
+            const SizedBox(height: 40),
           ],
         ),
       ),
@@ -258,22 +290,23 @@ class BookingConfirmationScreen extends StatelessWidget {
   }
 
   Widget _buildDetailRow({
+    required BuildContext context,
     required IconData icon,
     required String label,
     required String value,
     Color? valueColor,
   }) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
           Icon(icon, size: 20, color: Colors.grey[600]),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               label,
-              style: TextStyle(
-                color: Colors.grey[600],
+              style: const TextStyle(
+                color: Colors.grey,
                 fontSize: 14,
               ),
             ),
@@ -285,9 +318,27 @@ class BookingConfirmationScreen extends StatelessWidget {
               fontSize: 14,
               fontWeight: FontWeight.w600,
             ),
+            textAlign: TextAlign.right,
           ),
         ],
       ),
     );
+  }
+
+  // 🔥 NEW: Get status color (matches Vue.js)
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'confirmed':
+      case 'completed':
+        return Colors.green;
+      case 'pending':
+      case 'pending_payment':
+        return Colors.orange;
+      case 'cancelled':
+      case 'rejected':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
   }
 }

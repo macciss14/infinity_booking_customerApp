@@ -1,3 +1,4 @@
+// lib/models/booking_model.dart
 import 'dart:convert';
 import 'package:intl/intl.dart';
 
@@ -6,7 +7,7 @@ class BookingModel {
   final String serviceId;
   final String serviceName;
   final String? serviceImage;
-  final String providerId;
+  final String providerId;    // 🔥 Must be PROV-xxx (not MongoDB _id)
   final String providerName;
   final String customerId;
   final String customerName;
@@ -100,23 +101,23 @@ class BookingModel {
   String get statusColor {
     switch (status.toLowerCase()) {
       case 'confirmed':
-        return '#10B981'; // green
+        return '#10B981';
       case 'pending':
       case 'pending_payment':
-        return '#F59E0B'; // orange
+        return '#F59E0B';
       case 'cancelled':
-        return '#EF4444'; // red
+        return '#EF4444';
       case 'completed':
-        return '#3B82F6'; // blue
+        return '#3B82F6';
       default:
-        return '#6B7280'; // gray
+        return '#6B7280';
     }
   }
 
-  // Icon based on status
   String get statusIcon {
     switch (status.toLowerCase()) {
       case 'confirmed':
+      case 'completed':
         return '✓';
       case 'pending':
         return '⏳';
@@ -124,65 +125,84 @@ class BookingModel {
         return '💰';
       case 'cancelled':
         return '✗';
-      case 'completed':
-        return '✓';
       default:
         return '?';
     }
   }
 
+  // 🔥 EXTRACT PROVIDER PID FROM providerDetails IF AVAILABLE
+  String get resolvedProviderPid {
+    if (providerDetails != null && providerDetails!['pid'] != null) {
+      return providerDetails!['pid'].toString();
+    }
+    // Fallback: if providerId looks like a PID
+    if (providerId.startsWith('PROV-')) {
+      return providerId;
+    }
+    return providerId;
+  }
+
   factory BookingModel.fromJson(Map<String, dynamic> json) {
-    // Parse booking date - handle both string and map formats
-    DateTime parseBookingDate(dynamic dateData) {
+    DateTime _parseBookingDate(dynamic dateData) {
+      if (dateData == null) return DateTime.now();
       if (dateData is String) {
-        return DateTime.parse(dateData);
+        if (dateData.contains('/')) {
+          // Handle DD/MM/YYYY from backend (rare, but safe)
+          final parts = dateData.split('/');
+          if (parts.length == 3) {
+            final d = int.tryParse(parts[0]) ?? 1;
+            final m = int.tryParse(parts[1]) ?? 1;
+            final y = int.tryParse(parts[2]) ?? DateTime.now().year;
+            return DateTime(y, m, d);
+          }
+        }
+        return DateTime.tryParse(dateData) ?? DateTime.now();
       } else if (dateData is Map && dateData['\$date'] != null) {
-        return DateTime.parse(dateData['\$date'].toString());
-      } else {
-        return DateTime.now();
+        return DateTime.tryParse(dateData['\$date'].toString()) ?? DateTime.now();
       }
+      return DateTime.now();
     }
 
-    // Parse other dates
-    DateTime? parseDate(dynamic dateData) {
+    DateTime? _parseDate(dynamic dateData) {
       if (dateData == null) return null;
-      if (dateData is String) {
-        return DateTime.parse(dateData);
-      } else if (dateData is Map && dateData['\$date'] != null) {
-        return DateTime.parse(dateData['\$date'].toString());
+      if (dateData is String) return DateTime.tryParse(dateData);
+      if (dateData is Map && dateData['\$date'] != null) {
+        return DateTime.tryParse(dateData['\$date'].toString());
       }
       return null;
     }
 
-    // Extract service details
     Map<String, dynamic>? serviceDetails;
     if (json['service'] is Map) {
       serviceDetails = Map<String, dynamic>.from(json['service']);
+    } else if (json['serviceDetails'] is Map) {
+      serviceDetails = Map<String, dynamic>.from(json['serviceDetails']);
     }
 
-    // Extract provider details
     Map<String, dynamic>? providerDetails;
     if (json['provider'] is Map) {
       providerDetails = Map<String, dynamic>.from(json['provider']);
+    } else if (json['providerDetails'] is Map) {
+      providerDetails = Map<String, dynamic>.from(json['providerDetails']);
     }
 
     return BookingModel(
       id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
       serviceId: json['serviceId']?.toString() ?? '',
       serviceName: json['serviceName']?.toString() ??
-          json['service']?['name']?.toString() ??
-          json['service']?['title']?.toString() ??
+          serviceDetails?['title']?.toString() ??
+          serviceDetails?['name']?.toString() ??
           'Service',
       serviceImage: json['serviceImage']?.toString() ??
-          json['service']?['imageUrl']?.toString() ??
-          json['service']?['image']?.toString(),
+          serviceDetails?['imageUrl']?.toString() ??
+          serviceDetails?['image']?.toString(),
       providerId: json['providerId']?.toString() ??
-          json['provider']?['_id']?.toString() ??
-          json['provider']?['id']?.toString() ??
+          providerDetails?['pid']?.toString() ??  // ✅ Prefer PID
+          providerDetails?['_id']?.toString() ??
           '',
       providerName: json['providerName']?.toString() ??
-          json['provider']?['fullname']?.toString() ??
-          json['provider']?['name']?.toString() ??
+          providerDetails?['fullname']?.toString() ??
+          providerDetails?['name']?.toString() ??
           'Provider',
       customerId: json['customerId']?.toString() ??
           json['customer']?['_id']?.toString() ??
@@ -192,7 +212,7 @@ class BookingModel {
           json['customer']?['fullname']?.toString() ??
           json['user']?['fullname']?.toString() ??
           'Customer',
-      bookingDate: parseBookingDate(json['bookingDate'] ?? json['date']),
+      bookingDate: _parseBookingDate(json['bookingDate'] ?? json['date']),
       startTime: json['startTime']?.toString() ?? '09:00',
       endTime: json['endTime']?.toString() ?? '10:00',
       totalAmount: (json['totalAmount'] as num?)?.toDouble() ??
@@ -205,10 +225,10 @@ class BookingModel {
           json['reference']?.toString(),
       notes: json['notes']?.toString(),
       status: json['status']?.toString()?.toLowerCase() ?? 'pending',
-      createdAt: parseDate(json['createdAt']) ?? DateTime.now(),
-      updatedAt: parseDate(json['updatedAt']),
+      createdAt: _parseDate(json['createdAt']) ?? DateTime.now(),
+      updatedAt: _parseDate(json['updatedAt']),
       cancellationReason: json['cancellationReason']?.toString(),
-      cancellationDate: parseDate(json['cancellationDate']),
+      cancellationDate: _parseDate(json['cancellationDate']),
       cancellationPolicy: json['cancellationPolicy']?.toString(),
       refundAmount: json['refundAmount']?.toString(),
       isPaid: json['isPaid'] == true || json['paymentStatus'] == 'paid',
@@ -218,10 +238,10 @@ class BookingModel {
       remainingAmount: (json['remainingAmount'] as num?)?.toDouble(),
       invoiceNumber: json['invoiceNumber']?.toString(),
       paymentStatus: json['paymentStatus']?.toString(),
-      paymentDate: parseDate(json['paymentDate']),
+      paymentDate: _parseDate(json['paymentDate']),
       serviceDetails: serviceDetails,
       providerDetails: providerDetails,
-      bookingItems: json['bookingItems'] is List ? json['bookingItems'] : null,
+      bookingItems: json['bookingItems'] is List ? List.from(json['bookingItems']) : null,
       isAdminBooking: json['isAdminBooking'] == true,
       adminNotes: json['adminNotes']?.toString(),
       requiresConfirmation: json['requiresConfirmation'] == true,
@@ -356,4 +376,19 @@ class BookingModel {
       bookingType: bookingType ?? this.bookingType,
     );
   }
+
+  @override
+  String toString() {
+    return 'BookingModel{id: $id, providerId: $providerId, status: $status}';
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BookingModel &&
+          runtimeType == other.runtimeType &&
+          id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 }

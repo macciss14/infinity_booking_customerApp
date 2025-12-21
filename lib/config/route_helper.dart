@@ -1,4 +1,4 @@
-// lib/config/route_helper.dart - UPDATED WITH FIXES
+// lib/config/route_helper.dart
 import 'package:flutter/material.dart';
 
 // Auth Screens
@@ -35,7 +35,7 @@ import '../screens/booking/skip_payment_confirmation_screen.dart';
 // Profile Screens
 import '../screens/profile/edit_profile_screen.dart';
 
-// Models (ADD THESE IMPORTS)
+// Models
 import '../models/booking_model.dart';
 import '../models/service_model.dart';
 
@@ -123,14 +123,11 @@ class RouteHelper {
 
       // Service List with filtering
       case serviceList:
-        // Handle arguments for filtering
         if (args is String) {
-          // Category ID passed as string
           return MaterialPageRoute(
             builder: (_) => ServiceListScreen(categoryId: args),
           );
         } else if (args is Map<String, dynamic>) {
-          // Multiple filter parameters
           return MaterialPageRoute(
             builder: (_) => ServiceListScreen(
               categoryId: args['categoryId'] as String?,
@@ -141,7 +138,6 @@ class RouteHelper {
             ),
           );
         } else {
-          // No filters
           return MaterialPageRoute(builder: (_) => const ServiceListScreen());
         }
 
@@ -156,6 +152,10 @@ class RouteHelper {
             builder: (_) => ServiceDetailScreen(
               serviceId: args['serviceId'] as String,
             ),
+          );
+        } else if (args is ServiceModel) {
+          return MaterialPageRoute(
+            builder: (_) => ServiceDetailScreen(serviceId: args.id),
           );
         }
         return _errorRoute('Service ID required for service detail');
@@ -175,46 +175,91 @@ class RouteHelper {
         }
         return _errorRoute('Service ID required for reviews');
 
-      // Booking Screen
+      // 🔥 NEW: Booking Screen with Provider ID
       case booking:
         if (args is String) {
           return MaterialPageRoute(
             builder: (_) => BookingScreen(serviceId: args),
           );
         } else if (args is Map<String, dynamic>) {
+          // ✅ Handle both serviceId and providerId
+          final serviceId = args['serviceId'] as String?;
+          final providerId = args['providerId'] as String?;
+          
+          if (serviceId == null) {
+            return _errorRoute('Service ID is required for booking');
+          }
+          
           return MaterialPageRoute(
             builder: (_) => BookingScreen(
-              serviceId: args['serviceId'] as String,
+              serviceId: serviceId,
+              providerId: providerId, // ✅ Pass providerId to booking screen
             ),
+          );
+        } else if (args is ServiceModel) {
+          return MaterialPageRoute(
+            builder: (_) => BookingScreen(serviceId: args.id),
           );
         }
         return _errorRoute('Service ID required for booking');
 
-      // Payment Method Screen
+      // Payment Method Screen - UPDATED TO ACCEPT PROVIDERID
       case paymentMethod:
         if (args is Map<String, dynamic>) {
+          final service = args['service'];
+          ServiceModel serviceModel;
+
+          if (service is ServiceModel) {
+            serviceModel = service;
+          } else if (service is Map<String, dynamic>) {
+            try {
+              serviceModel = ServiceModel.fromJson(service);
+            } catch (e) {
+              return _errorRoute('Invalid service data format');
+            }
+          } else {
+            return _errorRoute('Service data required');
+          }
+
           return MaterialPageRoute(
             builder: (_) => PaymentMethodScreen(
-              service: args['service'] as ServiceModel, // FIXED: Cast to ServiceModel
+              service: serviceModel,
               selectedSlot: args['selectedSlot'] as Map<String, dynamic>,
               totalAmount: args['totalAmount'] as double,
               bookingDate: args['bookingDate'] as String,
               notes: args['notes'] as String?,
+              providerId: args['providerId'] as String?, // ✅ ADD THIS
             ),
           );
         }
         return _errorRoute('Payment method screen requires booking data');
 
-      // Skip Payment Confirmation Screen
+      // Skip Payment Confirmation Screen - UPDATED TO ACCEPT PROVIDERID
       case skipPayment:
         if (args is Map<String, dynamic>) {
+          final service = args['service'];
+          ServiceModel serviceModel;
+
+          if (service is ServiceModel) {
+            serviceModel = service;
+          } else if (service is Map<String, dynamic>) {
+            try {
+              serviceModel = ServiceModel.fromJson(service);
+            } catch (e) {
+              return _errorRoute('Invalid service data format');
+            }
+          } else {
+            return _errorRoute('Service data required');
+          }
+
           return MaterialPageRoute(
             builder: (_) => SkipPaymentConfirmationScreen(
-              service: args['service'] as ServiceModel, // FIXED: Cast to ServiceModel
+              service: serviceModel,
               selectedSlot: args['selectedSlot'] as Map<String, dynamic>,
               totalAmount: args['totalAmount'] as double,
               bookingDate: args['bookingDate'] as String,
               notes: args['notes'] as String?,
+              providerId: args['providerId'] as String?, // ✅ ADD THIS
             ),
           );
         }
@@ -223,31 +268,28 @@ class RouteHelper {
       // Booking Confirmation Screen
       case bookingConfirmation:
         if (args is Map<String, dynamic>) {
-          // FIXED: Properly handle arguments
           final booking = args['booking'];
+          BookingModel bookingModel;
+
           if (booking is BookingModel) {
-            return MaterialPageRoute(
-              builder: (_) => BookingConfirmationScreen(
-                booking: booking,
-                paymentResult: args['paymentResult'] as Map<String, dynamic>?,
-                skipPayment: args['skipPayment'] as bool? ?? false,
-              ),
-            );
+            bookingModel = booking;
           } else if (booking is Map<String, dynamic>) {
-            // Convert map to BookingModel
             try {
-              final bookingModel = BookingModel.fromJson(booking);
-              return MaterialPageRoute(
-                builder: (_) => BookingConfirmationScreen(
-                  booking: bookingModel,
-                  paymentResult: args['paymentResult'] as Map<String, dynamic>?,
-                  skipPayment: args['skipPayment'] as bool? ?? false,
-                ),
-              );
+              bookingModel = BookingModel.fromJson(booking);
             } catch (e) {
               return _errorRoute('Invalid booking data format');
             }
+          } else {
+            return _errorRoute('Booking data required');
           }
+
+          return MaterialPageRoute(
+            builder: (_) => BookingConfirmationScreen(
+              booking: bookingModel,
+              paymentResult: args['paymentResult'] as Map<String, dynamic>?,
+              skipPayment: args['skipPayment'] as bool? ?? false,
+            ),
+          );
         }
         return _errorRoute('Booking confirmation data required');
 
@@ -301,12 +343,10 @@ class RouteHelper {
                 ElevatedButton(
                   onPressed: () {
                     // Navigate back to home
-                    // You might want to use a Navigator key or context
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 32, vertical: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                   ),
                   child: const Text(
                     'Go to Home',
@@ -418,11 +458,34 @@ class RouteHelper {
     );
   }
 
+  // 🔥 NEW NAVIGATION HELPER: Booking with Provider ID
+  /// Navigate to booking flow with provider ID (EXACTLY LIKE VUE)
+  static void goToBookingWithProvider({
+    required BuildContext context,
+    required String serviceId,
+    required String providerId,
+  }) {
+    pushNamed(
+      context,
+      booking,
+      arguments: {
+        'serviceId': serviceId,
+        'providerId': providerId, // ✅ Critical for fixing 400 error
+      },
+    );
+  }
+
   // Navigation shortcuts for common flows
 
   /// Navigate to service detail
   static void goToServiceDetail(BuildContext context, String serviceId) {
     pushNamed(context, serviceDetail, arguments: serviceId);
+  }
+
+  /// Navigate to service detail with ServiceModel
+  static void goToServiceDetailWithModel(
+      BuildContext context, ServiceModel service) {
+    pushNamed(context, serviceDetail, arguments: service);
   }
 
   /// Navigate to service list with category filter
@@ -450,7 +513,12 @@ class RouteHelper {
     pushNamed(context, booking, arguments: serviceId);
   }
 
-  /// Navigate to payment method selection
+  /// Navigate to booking flow with ServiceModel
+  static void goToBookingWithModel(BuildContext context, ServiceModel service) {
+    pushNamed(context, booking, arguments: service);
+  }
+
+  /// Navigate to payment method selection - UPDATED TO ACCEPT PROVIDERID
   static void goToPaymentMethod(
     BuildContext context, {
     required ServiceModel service,
@@ -458,6 +526,7 @@ class RouteHelper {
     required double totalAmount,
     required String bookingDate,
     String? notes,
+    String? providerId, // ✅ ADD THIS
   }) {
     pushNamed(
       context,
@@ -468,11 +537,12 @@ class RouteHelper {
         'totalAmount': totalAmount,
         'bookingDate': bookingDate,
         'notes': notes,
+        'providerId': providerId, // ✅ ADD THIS
       },
     );
   }
 
-  /// Navigate to skip payment confirmation
+  /// Navigate to skip payment confirmation - UPDATED TO ACCEPT PROVIDERID
   static void goToSkipPayment(
     BuildContext context, {
     required ServiceModel service,
@@ -480,6 +550,7 @@ class RouteHelper {
     required double totalAmount,
     required String bookingDate,
     String? notes,
+    String? providerId, // ✅ ADD THIS
   }) {
     pushNamed(
       context,
@@ -490,6 +561,7 @@ class RouteHelper {
         'totalAmount': totalAmount,
         'bookingDate': bookingDate,
         'notes': notes,
+        'providerId': providerId, // ✅ ADD THIS
       },
     );
   }
@@ -558,7 +630,8 @@ class RouteHelper {
   }
 
   /// Show loading dialog
-  static void showLoadingDialog(BuildContext context, {String message = 'Loading...'}) {
+  static void showLoadingDialog(BuildContext context,
+      {String message = 'Loading...'}) {
     showDialog(
       context: context,
       barrierDismissible: false,

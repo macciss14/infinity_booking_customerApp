@@ -1,7 +1,10 @@
+// lib/screens/booking/skip_payment_confirmation_screen.dart - COMPLETE FIXED VERSION
 import 'package:flutter/material.dart';
 import '../../models/service_model.dart';
+import '../../models/booking_model.dart';
 import '../../services/booking_service.dart';
-import './booking_confirmation_screen.dart';
+import '../../utils/constants.dart';
+import '../../config/route_helper.dart';
 
 class SkipPaymentConfirmationScreen extends StatefulWidget {
   final ServiceModel service;
@@ -9,6 +12,7 @@ class SkipPaymentConfirmationScreen extends StatefulWidget {
   final double totalAmount;
   final String bookingDate;
   final String? notes;
+  final String? providerId;
 
   const SkipPaymentConfirmationScreen({
     super.key,
@@ -17,49 +21,93 @@ class SkipPaymentConfirmationScreen extends StatefulWidget {
     required this.totalAmount,
     required this.bookingDate,
     this.notes,
+    this.providerId,
   });
 
   @override
-  State<SkipPaymentConfirmationScreen> createState() => _SkipPaymentConfirmationScreenState();
+  State<SkipPaymentConfirmationScreen> createState() =>
+      _SkipPaymentConfirmationScreenState();
 }
 
-class _SkipPaymentConfirmationScreenState extends State<SkipPaymentConfirmationScreen> {
+class _SkipPaymentConfirmationScreenState
+    extends State<SkipPaymentConfirmationScreen> {
   final BookingService _bookingService = BookingService();
   bool _loading = false;
 
-  Future<void> _confirmSkipPayment() async {
+  Future<void> _confirmBooking() async {
+    // Extract time slot data
+    final timeSlot = widget.selectedSlot['timeSlot'] ?? widget.selectedSlot;
+    final startTime = timeSlot['startTime']?.toString() ?? '';
+    final endTime = timeSlot['endTime']?.toString() ?? '';
+    
+    if (startTime.isEmpty || endTime.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid time slot selected')),
+      );
+      return;
+    }
+
+    // Get provider ID with fallback
+    final String providerId = widget.providerId ?? 
+                            widget.service.providerPid ?? 
+                            widget.service.providerId ?? '';
+    
+    if (providerId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Provider information is missing')),
+      );
+      return;
+    }
+
     setState(() => _loading = true);
 
     try {
-      // Create booking with skipPayment flag
+      print('📋 Creating booking without payment...');
+      print('   - Provider ID: $providerId');
+      print('   - Date: ${widget.bookingDate}');
+      print('   - Time: $startTime - $endTime');
+      
       final booking = await _bookingService.createBooking(
         serviceId: widget.service.id,
-        providerId: widget.service.providerId ?? '',
+        providerId: providerId,
         bookingDate: widget.bookingDate,
-        startTime: widget.selectedSlot['timeSlot']['startTime'],
-        endTime: widget.selectedSlot['timeSlot']['endTime'],
+        startTime: startTime,
+        endTime: endTime,
         totalAmount: widget.totalAmount,
         notes: widget.notes,
         skipPayment: true,
       );
 
-      // Navigate to confirmation screen
-      Navigator.pushReplacement(
+      print('✅ Booking created successfully: ${booking.id}');
+      
+      RouteHelper.goToBookingConfirmation(
         context,
-        MaterialPageRoute(
-          builder: (context) => BookingConfirmationScreen(
-            booking: booking,
-            skipPayment: true,
-          ),
-        ),
+        booking: booking,
+        skipPayment: true,
       );
     } catch (error) {
-      print('Error creating booking without payment: $error');
+      print('❌ Booking creation failed: $error');
+      
+      String errorMessage = 'Failed to create booking';
+      if (error.toString().contains('providerId')) {
+        errorMessage = 'Provider information error. Please go back and try again.';
+      } else if (error.toString().contains('400')) {
+        errorMessage = 'Invalid booking data. Please check your selection.';
+      } else if (error.toString().contains('401')) {
+        errorMessage = 'Session expired. Please log in again.';
+      }
+      
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${error.toString()}')),
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: AppColors.error,
+          duration: const Duration(seconds: 4),
+        ),
       );
     } finally {
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -67,188 +115,73 @@ class _SkipPaymentConfirmationScreenState extends State<SkipPaymentConfirmationS
     Navigator.pop(context);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Skip Payment Confirmation'),
-        backgroundColor: Theme.of(context).primaryColor,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: _goBack,
-        ),
+  Widget _buildBookingSummary() {
+    final timeSlot = widget.selectedSlot['timeSlot'] ?? widget.selectedSlot;
+    final startTime = timeSlot['startTime']?.toString() ?? '';
+    final endTime = timeSlot['endTime']?.toString() ?? '';
+    final timeRange = startTime.isNotEmpty && endTime.isNotEmpty
+        ? '$startTime - $endTime'
+        : 'Time not specified';
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
       ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Warning Header
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.orange[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange[200]!),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.warning, color: Colors.orange[800]),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Skip Payment Confirmation',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.orange[800],
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: 20),
-
-            // Warning Message
             Text(
-              'You are about to create a booking without payment. This booking will be marked as "pending payment" and must be paid before the service date.',
-              style: TextStyle(
-                fontSize: 15,
-                color: Colors.grey[700],
-                height: 1.5,
+              'Booking Summary',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
             ),
-            SizedBox(height: 20),
-
-            // Booking Summary
-            Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Booking Summary',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: 12),
-                    _buildSummaryRow('Service', widget.service.name),
-                    _buildSummaryRow('Provider', widget.service.providerName ?? 'Unknown'),
-                    _buildSummaryRow('Date', widget.bookingDate),
-                    _buildSummaryRow('Time',
-                        '${widget.selectedSlot['timeSlot']['startTime']} - ${widget.selectedSlot['timeSlot']['endTime']}'),
-                    _buildSummaryRow('Payment Status', 'Pending Payment',
-                        statusColor: Colors.orange),
-                    if (widget.notes != null && widget.notes!.isNotEmpty)
-                      _buildSummaryRow('Notes', widget.notes!),
-                    Divider(height: 24),
-                    _buildSummaryRow('Total Amount',
-                        '${widget.totalAmount.toStringAsFixed(2)} ETB',
-                        isTotal: true),
-                  ],
-                ),
-              ),
+            const SizedBox(height: 16),
+            _buildSummaryItem('Service', widget.service.name),
+            _buildSummaryItem('Provider', widget.service.displayProviderName),
+            _buildSummaryItem('Date', widget.bookingDate),
+            _buildSummaryItem('Time', timeRange),
+            _buildSummaryItem(
+              'Payment Status',
+              'Pending Payment',
+              valueColor: Colors.orange,
             ),
-            SizedBox(height: 20),
-
-            // Important Notes
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.yellow[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.yellow[200]!),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Important Information',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: Colors.orange[800],
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    '• This booking requires payment confirmation before the service date\n'
-                    '• You can pay later from your bookings page\n'
-                    '• Service provider may cancel if payment is not confirmed\n'
-                    '• Cancellation policy still applies',
-                    style: TextStyle(
-                      color: Colors.orange[700],
-                      fontSize: 14,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: 32),
-
-            // Action Buttons
+            if (widget.notes != null && widget.notes!.isNotEmpty)
+              _buildSummaryItem('Notes', widget.notes!),
+            const Divider(height: 24),
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _goBack,
-                    style: OutlinedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.arrow_back, size: 18),
-                        SizedBox(width: 8),
-                        Text('Go Back'),
-                      ],
-                    ),
+                Text(
+                  'Total Amount',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _loading ? null : _confirmSkipPayment,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: _loading
-                        ? CircularProgressIndicator(color: Colors.white)
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.check, size: 18),
-                              SizedBox(width: 8),
-                              Text('Confirm Booking'),
-                            ],
-                          ),
+                Text(
+                  '${widget.totalAmount.toStringAsFixed(2)} ${widget.service.priceUnit ?? 'ETB'}',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.secondary,
                   ),
                 ),
               ],
             ),
-
-            SizedBox(height: 40),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSummaryRow(String label, String value,
-      {bool isTotal = false, Color? statusColor}) {
+  Widget _buildSummaryItem(String label, String value, {Color? valueColor}) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -256,19 +189,167 @@ class _SkipPaymentConfirmationScreenState extends State<SkipPaymentConfirmationS
             label,
             style: TextStyle(
               color: Colors.grey[600],
-              fontSize: isTotal ? 16 : 14,
-              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
             ),
           ),
           Text(
             value,
             style: TextStyle(
-              color: statusColor ?? (isTotal ? Colors.green : Colors.grey[900]),
-              fontSize: isTotal ? 18 : 14,
-              fontWeight: isTotal ? FontWeight.bold : FontWeight.w600,
+              fontWeight: FontWeight.w500,
+              color: valueColor,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Skip Payment Confirmation'),
+        backgroundColor: AppColors.primary,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: _goBack,
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Warning Banner
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.orange.withOpacity(0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline,
+                    color: Colors.orange,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'You are booking without payment. Payment must be completed before the service date.',
+                      style: TextStyle(
+                        color: Colors.orange[800],
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            
+            // Booking Summary
+            _buildBookingSummary(),
+            
+            const SizedBox(height: 24),
+            
+            // Important Information
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Important Information',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    '• This booking requires payment confirmation before service\n'
+                    '• You can pay later from your bookings page\n'
+                    '• Provider may cancel if payment is not confirmed\n'
+                    '• Standard cancellation policies apply',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 40),
+            
+            // Action Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _loading ? null : _goBack,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      side: BorderSide(color: Colors.grey[400]!),
+                    ),
+                    child: const Text(
+                      'Go Back',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _loading ? null : _confirmBooking,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _loading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Confirm Booking',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
