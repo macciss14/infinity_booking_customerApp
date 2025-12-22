@@ -1,7 +1,9 @@
+// lib/screens/payments/payments_screen.dart
 import 'package:flutter/material.dart';
 import '../../services/booking_service.dart';
 import '../../models/booking_model.dart';
 import '../../config/route_helper.dart';
+import '../../utils/constants.dart';
 
 class PaymentsScreen extends StatefulWidget {
   const PaymentsScreen({super.key});
@@ -26,11 +28,22 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
     try {
       final bookings = await _bookingService.getUserBookings();
       _pendingPayments = bookings.where((b) => b.isPendingPayment).toList();
+      print('✅ Loaded ${_pendingPayments.length} pending payments');
     } catch (error) {
-      print('Error loading payments: $error');
+      print('❌ Error loading payments: $error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load payments: $error'),
+          backgroundColor: AppColors.error,
+        ),
+      );
     } finally {
       setState(() => _loading = false);
     }
+  }
+
+  Future<void> _refreshPayments() async {
+    await _loadPendingPayments();
   }
 
   @override
@@ -40,36 +53,45 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
         title: const Text('Payments'),
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _refreshPayments,
+          ),
+        ],
       ),
-      body: _loading
-          ? Center(child: CircularProgressIndicator())
-          : _pendingPayments.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.payment, size: 64, color: Colors.green),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'No Pending Payments',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'All your payments are up to date',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    ],
+      body: RefreshIndicator(
+        onRefresh: _refreshPayments,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _pendingPayments.isEmpty
+                ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.payment, size: 64, color: Colors.green),
+                        SizedBox(height: 16),
+                        Text(
+                          'No Pending Payments',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'All your payments are up to date',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _pendingPayments.length,
+                    itemBuilder: (context, index) {
+                      return _buildPaymentCard(_pendingPayments[index]);
+                    },
                   ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _pendingPayments.length,
-                  itemBuilder: (context, index) {
-                    return _buildPaymentCard(_pendingPayments[index]);
-                  },
-                ),
+      ),
     );
   }
 
@@ -126,14 +148,14 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
               style: TextStyle(color: Colors.grey[600]),
             ),
             const SizedBox(height: 12),
-            Divider(color: Colors.grey[300]),
+            const Divider(color: Colors.grey),
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
+                const Text(
                   'Total Amount',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
@@ -153,7 +175,6 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  // TODO: Navigate to payment method for this booking
                   _processPayment(booking);
                 },
                 style: ElevatedButton.styleFrom(
@@ -173,8 +194,6 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
   }
 
   void _processPayment(BookingModel booking) {
-    // This would navigate to payment gateway
-    // For now, show a dialog
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -234,10 +253,24 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
     );
   }
 
-  void _markAsCashPayment(BookingModel booking) {
-    // TODO: Mark booking as cash payment
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Marked as cash payment')),
-    );
+  Future<void> _markAsCashPayment(BookingModel booking) async {
+    try {
+      // Update booking status to mark as cash payment
+      await _bookingService.updateBookingStatus(
+        booking.id,
+        status: 'confirmed',
+      );
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Marked as cash payment')),
+      );
+      
+      // Refresh the list
+      await _refreshPayments();
+    } catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update: $error')),
+      );
+    }
   }
 }

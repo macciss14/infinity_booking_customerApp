@@ -1,5 +1,4 @@
 // lib/models/provider_model.dart
-import 'dart:convert';
 
 class ProviderModel {
   final String id;

@@ -8,7 +8,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../services/auth_service.dart';
 import '../../models/user_model.dart';
 import '../../utils/validators.dart';
-import '../../utils/constants.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});

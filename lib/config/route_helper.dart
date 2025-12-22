@@ -1,4 +1,4 @@
-// lib/config/route_helper.dart
+// lib/config/route_helper.dart - COMPLETE CORRECTED VERSION
 import 'package:flutter/material.dart';
 
 // Auth Screens
@@ -151,11 +151,15 @@ class RouteHelper {
           return MaterialPageRoute(
             builder: (_) => ServiceDetailScreen(
               serviceId: args['serviceId'] as String,
+              service: args['service'] as ServiceModel?,
             ),
           );
         } else if (args is ServiceModel) {
           return MaterialPageRoute(
-            builder: (_) => ServiceDetailScreen(serviceId: args.id),
+            builder: (_) => ServiceDetailScreen(
+              serviceId: args.id,
+              service: args,
+            ),
           );
         }
         return _errorRoute('Service ID required for service detail');
@@ -175,16 +179,17 @@ class RouteHelper {
         }
         return _errorRoute('Service ID required for reviews');
 
-      // 🔥 NEW: Booking Screen with Provider ID
+      // ✅ FIXED: Booking Screen with Provider ID - CRITICAL FOR 400 ERROR FIX
       case booking:
         if (args is String) {
           return MaterialPageRoute(
             builder: (_) => BookingScreen(serviceId: args),
           );
         } else if (args is Map<String, dynamic>) {
-          // ✅ Handle both serviceId and providerId
+          // ✅ IMPORTANT: Handle both serviceId and providerId
           final serviceId = args['serviceId'] as String?;
           final providerId = args['providerId'] as String?;
+          final service = args['service'] as ServiceModel?;
           
           if (serviceId == null) {
             return _errorRoute('Service ID is required for booking');
@@ -203,7 +208,7 @@ class RouteHelper {
         }
         return _errorRoute('Service ID required for booking');
 
-      // Payment Method Screen - UPDATED TO ACCEPT PROVIDERID
+      // ✅ FIXED: Payment Method Screen - ACCEPTS PROVIDERID
       case paymentMethod:
         if (args is Map<String, dynamic>) {
           final service = args['service'];
@@ -228,13 +233,13 @@ class RouteHelper {
               totalAmount: args['totalAmount'] as double,
               bookingDate: args['bookingDate'] as String,
               notes: args['notes'] as String?,
-              providerId: args['providerId'] as String?, // ✅ ADD THIS
+              providerId: args['providerId'] as String?, // ✅ ADDED
             ),
           );
         }
         return _errorRoute('Payment method screen requires booking data');
 
-      // Skip Payment Confirmation Screen - UPDATED TO ACCEPT PROVIDERID
+      // ✅ FIXED: Skip Payment Confirmation Screen - ACCEPTS PROVIDERID
       case skipPayment:
         if (args is Map<String, dynamic>) {
           final service = args['service'];
@@ -259,7 +264,7 @@ class RouteHelper {
               totalAmount: args['totalAmount'] as double,
               bookingDate: args['bookingDate'] as String,
               notes: args['notes'] as String?,
-              providerId: args['providerId'] as String?, // ✅ ADD THIS
+              providerId: args['providerId'] as String?, // ✅ ADDED
             ),
           );
         }
@@ -298,7 +303,7 @@ class RouteHelper {
         return MaterialPageRoute(builder: (_) => const EditProfileScreen());
 
       default:
-        return _errorRoute('Route not found');
+        return _errorRoute('Route not found: ${settings.name}');
     }
   }
 
@@ -458,19 +463,47 @@ class RouteHelper {
     );
   }
 
-  // 🔥 NEW NAVIGATION HELPER: Booking with Provider ID
-  /// Navigate to booking flow with provider ID (EXACTLY LIKE VUE)
+  // ✅ CRITICAL FIX: NEW NAVIGATION HELPER - Booking with Provider ID (EXACTLY LIKE VUE)
+  /// Navigate to booking flow with provider ID - FIXES 400 ERROR
   static void goToBookingWithProvider({
     required BuildContext context,
     required String serviceId,
     required String providerId,
+    ServiceModel? service,
   }) {
+    print('🔗 Navigating to booking with provider ID: $providerId');
+    
     pushNamed(
       context,
       booking,
       arguments: {
         'serviceId': serviceId,
         'providerId': providerId, // ✅ Critical for fixing 400 error
+        if (service != null) 'service': service,
+      },
+    );
+  }
+
+  // ✅ NEW: Navigate to booking with complete provider data
+  static void goToBookingWithCompleteData({
+    required BuildContext context,
+    required String serviceId,
+    required String providerId,
+    required Map<String, dynamic> providerData,
+    ServiceModel? service,
+  }) {
+    print('🔗 Navigating to booking with complete provider data');
+    print('   - Provider ID: $providerId');
+    print('   - Provider Name: ${providerData['name']}');
+    
+    pushNamed(
+      context,
+      booking,
+      arguments: {
+        'serviceId': serviceId,
+        'providerId': providerId,
+        'providerData': providerData,
+        if (service != null) 'service': service,
       },
     );
   }
@@ -508,17 +541,18 @@ class RouteHelper {
     );
   }
 
-  /// Navigate to booking flow
+  /// Navigate to booking flow (legacy - use goToBookingWithProvider for 400 fix)
   static void goToBooking(BuildContext context, String serviceId) {
     pushNamed(context, booking, arguments: serviceId);
   }
 
-  /// Navigate to booking flow with ServiceModel
+  /// Navigate to booking flow with ServiceModel (legacy)
   static void goToBookingWithModel(BuildContext context, ServiceModel service) {
     pushNamed(context, booking, arguments: service);
   }
 
-  /// Navigate to payment method selection - UPDATED TO ACCEPT PROVIDERID
+  // ✅ FIXED: Payment method selection - ACCEPTS PROVIDERID
+  /// Navigate to payment method selection
   static void goToPaymentMethod(
     BuildContext context, {
     required ServiceModel service,
@@ -526,8 +560,10 @@ class RouteHelper {
     required double totalAmount,
     required String bookingDate,
     String? notes,
-    String? providerId, // ✅ ADD THIS
+    String? providerId, // ✅ ADDED - Required for booking creation
   }) {
+    print('💳 Navigating to payment method with provider ID: $providerId');
+    
     pushNamed(
       context,
       paymentMethod,
@@ -537,12 +573,13 @@ class RouteHelper {
         'totalAmount': totalAmount,
         'bookingDate': bookingDate,
         'notes': notes,
-        'providerId': providerId, // ✅ ADD THIS
+        'providerId': providerId, // ✅ ADDED
       },
     );
   }
 
-  /// Navigate to skip payment confirmation - UPDATED TO ACCEPT PROVIDERID
+  // ✅ FIXED: Skip payment confirmation - ACCEPTS PROVIDERID
+  /// Navigate to skip payment confirmation
   static void goToSkipPayment(
     BuildContext context, {
     required ServiceModel service,
@@ -550,8 +587,10 @@ class RouteHelper {
     required double totalAmount,
     required String bookingDate,
     String? notes,
-    String? providerId, // ✅ ADD THIS
+    String? providerId, // ✅ ADDED - Required for booking creation
   }) {
+    print('⏭ Navigating to skip payment with provider ID: $providerId');
+    
     pushNamed(
       context,
       skipPayment,
@@ -561,7 +600,7 @@ class RouteHelper {
         'totalAmount': totalAmount,
         'bookingDate': bookingDate,
         'notes': notes,
-        'providerId': providerId, // ✅ ADD THIS
+        'providerId': providerId, // ✅ ADDED
       },
     );
   }
@@ -629,6 +668,33 @@ class RouteHelper {
     pushNamed(context, profile);
   }
 
+  // ✅ NEW: Navigate to pending payments screen
+  static void goToPendingPayments(BuildContext context) {
+    pushNamed(context, payments);
+  }
+
+  // ✅ NEW: Navigate with data preservation
+  static void goToScreenWithData(
+    BuildContext context,
+    String routeName,
+    Map<String, dynamic> data,
+  ) {
+    pushNamed(context, routeName, arguments: data);
+  }
+
+  // ✅ NEW: Clear navigation stack and go to screen
+  static void clearStackAndGo(
+    BuildContext context,
+    String routeName, {
+    Object? arguments,
+  }) {
+    pushNamedAndRemoveUntil(
+      context,
+      routeName,
+      arguments: arguments,
+    );
+  }
+
   /// Show loading dialog
   static void showLoadingDialog(BuildContext context,
       {String message = 'Loading...'}) {
@@ -652,21 +718,32 @@ class RouteHelper {
     Navigator.of(context, rootNavigator: true).pop();
   }
 
-  /// Show error dialog
+  // ✅ IMPROVED: Show error dialog with better styling
   static void showErrorDialog(
     BuildContext context, {
     required String title,
     required String message,
     String buttonText = 'OK',
+    VoidCallback? onPressed,
+    bool autoDismiss = true,
   }) {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: Text(title),
+        title: Row(
+          children: [
+            Icon(Icons.error_outline, color: Colors.red[400]),
+            const SizedBox(width: 8),
+            Text(title),
+          ],
+        ),
         content: Text(message),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: onPressed ?? () {
+              if (autoDismiss) Navigator.pop(context);
+            },
             child: Text(buttonText),
           ),
         ],
@@ -674,7 +751,7 @@ class RouteHelper {
     );
   }
 
-  /// Show success dialog
+  // ✅ IMPROVED: Show success dialog
   static void showSuccessDialog(
     BuildContext context, {
     required String title,
@@ -685,7 +762,13 @@ class RouteHelper {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(title, style: const TextStyle(color: Colors.green)),
+        title: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.green),
+            const SizedBox(width: 8),
+            Text(title),
+          ],
+        ),
         content: Text(message),
         actions: [
           TextButton(
@@ -697,13 +780,15 @@ class RouteHelper {
     );
   }
 
-  /// Show confirmation dialog
+  // ✅ IMPROVED: Show confirmation dialog with better UI
   static Future<bool> showConfirmDialog(
     BuildContext context, {
     required String title,
     required String message,
     String confirmText = 'Confirm',
     String cancelText = 'Cancel',
+    Color confirmColor = Colors.red,
+    Color cancelColor = Colors.grey,
   }) async {
     final result = await showDialog<bool>(
       context: context,
@@ -713,15 +798,96 @@ class RouteHelper {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
+            style: TextButton.styleFrom(foregroundColor: cancelColor),
             child: Text(cancelText),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: confirmColor),
             child: Text(confirmText),
           ),
         ],
       ),
     );
     return result ?? false;
+  }
+
+  // ✅ NEW: Show booking confirmation dialog
+  static Future<bool> showBookingConfirmationDialog(
+    BuildContext context, {
+    required String serviceName,
+    required String providerName,
+    required String date,
+    required String time,
+    required double amount,
+  }) async {
+    return await showConfirmDialog(
+      context,
+      title: 'Confirm Booking',
+      message: 'Confirm booking for:\n\n'
+          '• Service: $serviceName\n'
+          '• Provider: $providerName\n'
+          '• Date: $date\n'
+          '• Time: $time\n'
+          '• Amount: ${amount.toStringAsFixed(2)} ETB\n\n'
+          'Proceed with booking?',
+      confirmText: 'Book Now',
+      cancelText: 'Cancel',
+      confirmColor: Colors.green,
+    );
+  }
+
+  // ✅ NEW: Show payment confirmation dialog
+  static Future<bool> showPaymentConfirmationDialog(
+    BuildContext context, {
+    required String paymentMethod,
+    required double amount,
+  }) async {
+    return await showConfirmDialog(
+      context,
+      title: 'Confirm Payment',
+      message: 'Confirm payment of ${amount.toStringAsFixed(2)} ETB '
+          'via $paymentMethod?\n\n'
+          'This action cannot be undone.',
+      confirmText: 'Pay Now',
+      cancelText: 'Cancel',
+      confirmColor: Colors.green,
+    );
+  }
+
+  // ✅ NEW: Show logout confirmation dialog
+  static Future<bool> showLogoutConfirmationDialog(BuildContext context) async {
+    return await showConfirmDialog(
+      context,
+      title: 'Logout',
+      message: 'Are you sure you want to logout?',
+      confirmText: 'Logout',
+      cancelText: 'Cancel',
+    );
+  }
+
+  // ✅ NEW: Show session expired dialog
+  static void showSessionExpiredDialog(
+    BuildContext context, {
+    VoidCallback? onLoginPressed,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Session Expired'),
+        content: const Text('Your session has expired. Please login again.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              onLoginPressed?.call();
+              goToLogin(context);
+            },
+            child: const Text('Login'),
+          ),
+        ],
+      ),
+    );
   }
 }

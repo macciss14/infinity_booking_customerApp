@@ -137,5 +137,5 @@ String convertToDDMMYYYY(String isoDate) {
   if (parts.length == 3) {
     return '${parts[2]}/${parts[1]}/${parts[0]}';
   }
-  throw FormatException('Invalid date format');
+  throw const FormatException('Invalid date format');
 }

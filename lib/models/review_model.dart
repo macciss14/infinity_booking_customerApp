@@ -33,7 +33,7 @@ class ReviewModel {
   });
 
   factory ReviewModel.fromJson(Map<String, dynamic> json) {
-    DateTime? _parseDate(dynamic dateValue) {
+    DateTime? parseDate(dynamic dateValue) {
       if (dateValue == null) return null;
       try {
         if (dateValue is String) {
@@ -48,7 +48,7 @@ class ReviewModel {
     }
 
     // Extract user/customer info
-    String? _extractCustomerName(Map<String, dynamic>? userMap) {
+    String? extractCustomerName(Map<String, dynamic>? userMap) {
       if (userMap == null) return null;
       return userMap['fullname']?.toString() ??
           userMap['name']?.toString() ??
@@ -79,17 +79,17 @@ class ReviewModel {
       customerId: json['customerId']?.toString() ??
           userMap?['_id']?.toString() ??
           (json['userId'] as String?),
-      customerName: _extractCustomerName(userMap) ??
+      customerName: extractCustomerName(userMap) ??
           json['customerName']?.toString() ??
           'Anonymous User',
       rating: (json['rating'] as num?)?.toDouble(),
-      comment: json['comment']?.toString()?.isNotEmpty == true
+      comment: json['comment']?.toString().isNotEmpty == true
           ? json['comment'].toString()
           : 'No comment provided.',
       response: json['response']?.toString(),
-      createdAt: _parseDate(json['createdAt']),
-      updatedAt: _parseDate(json['updatedAt']),
-      respondedAt: _parseDate(json['respondedAt']),
+      createdAt: parseDate(json['createdAt']),
+      updatedAt: parseDate(json['updatedAt']),
+      respondedAt: parseDate(json['respondedAt']),
       helpfulCount: json['helpfulCount'] as int? ?? 0,
       status: json['status']?.toString() ?? 'published',
       providerId: providerId,

@@ -1,18 +1,21 @@
-// lib/services/booking_service.dart
+// lib/services/booking_service.dart - COMPLETE REWRITTEN VERSION
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/booking_model.dart';
+import '../models/user_model.dart';
 import '../utils/secure_storage.dart';
 import '../utils/constants.dart';
 
 class BookingService {
   final SecureStorage _secureStorage = SecureStorage();
+  final http.Client _httpClient = http.Client();
 
-  // ✅ Create a new booking - VALIDATES providerId and converts date to ISO
+  // ✅ Create a new booking with smart provider ID handling
   Future<BookingModel> createBooking({
     required String serviceId,
-    required String providerId,
-    required String bookingDate, // Format: DD/MM/YYYY (from UI)
+    required String providerId, // This might be MongoDB ID, PID, or user ID
+    required String bookingDate, // Format: DD/MM/YYYY
     required String startTime,
     required String endTime,
     required double totalAmount,
@@ -21,68 +24,469 @@ class BookingService {
     String? bookingReference,
     bool skipPayment = false,
   }) async {
-    // 🔥 CRITICAL: Validate providerId before sending
-    if (providerId.isEmpty) {
-      throw Exception('[providerId should not be empty]');
-    }
-    
-    // 🔥 Ensure providerId is a real PID (PROV-xxx) like Vue.js
-    if (!providerId.startsWith('PROV-')) {
-      print('⚠️ Warning: providerId "$providerId" doesn\'t start with PROV-. This may cause 400 errors.');
-    }
-
-    // 🔥 CRITICAL FIX: Convert DD/MM/YYYY → YYYY-MM-DD for backend
-    final isoBookingDate = _convertToIsoDate(bookingDate);
-
-    final body = {
-      'serviceId': serviceId,
-      'providerId': providerId, // ✅ Real PID like "PROV-123"
-      'bookingDate': isoBookingDate, // ✅ Now in ISO format
-      'startTime': startTime,
-      'endTime': endTime,
-      'totalAmount': totalAmount,
-      'paymentMethod': paymentMethod,
-      'notes': notes,
-      'bookingReference': bookingReference,
-      'skipPayment': skipPayment,
-      'status': skipPayment ? 'pending_payment' : 'confirmed',
-    };
-
-    print('📋 Creating booking with providerId: $providerId');
-    print('📋 Booking body: $body');
-
     try {
+      print('🚀 Starting booking creation process...');
+      print('   Input providerId: $providerId');
+      print('   Service ID: $serviceId');
+      print('   Date: $bookingDate');
+
+      // 🔥 STEP 1: Validate and extract real provider PID
+      final String realProviderPid = await _resolveProviderPid(providerId, serviceId);
+      
+      if (realProviderPid.isEmpty) {
+        throw Exception('Could not determine valid provider ID. Please try again or contact support.');
+      }
+
+      print('✅ Resolved provider PID: $realProviderPid');
+
+      // 🔥 STEP 2: Validate date format
+      _validateDateFormat(bookingDate);
+
+      // 🔥 STEP 3: Get customer ID in correct format
+      final customerId = await _getCurrentCustomerIdInCorrectFormat();
+      if (customerId == null || customerId.isEmpty) {
+        throw Exception('Please login to create a booking.');
+      }
+
+      print('✅ Customer ID: $customerId');
+
+      // 🔥 STEP 4: Prepare the booking request
+      final Map<String, dynamic> bookingRequest = {
+        'serviceId': serviceId,
+        'providerId': realProviderPid, // ✅ Use the resolved PID
+        'customerId': customerId,
+        'bookingDate': bookingDate, // ✅ Keep as DD/MM/YYYY
+        'startTime': startTime,
+        'endTime': endTime,
+        'totalAmount': totalAmount,
+        'paymentMethod': paymentMethod ?? (skipPayment ? null : 'cash'),
+        'notes': notes ?? '',
+        'bookingReference': bookingReference,
+        'skipPayment': skipPayment,
+        'status': skipPayment ? 'pending_payment' : 'confirmed',
+      };
+
+      // Remove null values
+      bookingRequest.removeWhere((key, value) => value == null);
+
+      print('📦 Final booking request:');
+      bookingRequest.forEach((key, value) {
+        print('   $key: $value');
+      });
+
+      // 🔥 STEP 5: Get authentication token
       final token = await _secureStorage.getToken();
-      if (token == null) throw Exception('Not authenticated');
+      if (token == null) {
+        throw Exception('Session expired. Please login again.');
+      }
 
       final url = AppConstants.buildUrl(AppConstants.createBookingEndpoint);
-      print('🔗 Booking URL: $url');
+      print('🔗 Booking endpoint: $url');
 
-      final response = await http.post(
+      // 🔥 STEP 6: Make the API request
+      final response = await _httpClient.post(
         Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
-        body: jsonEncode(body),
+        body: jsonEncode(bookingRequest),
       ).timeout(const Duration(seconds: 30));
 
-      if (response.statusCode == 201) {
+      print('📡 Response status: ${response.statusCode}');
+      
+      if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        print('✅ Booking created successfully');
+        print('🎉 Booking created successfully!');
+        print('📋 Booking ID: ${data['_id'] ?? data['id']}');
         return BookingModel.fromJson(data);
       }
 
-      // Parse error message like Vue.js
-      String errorMsg = 'Failed to create booking (${response.statusCode})';
-      try {
-        final errorJson = jsonDecode(response.body);
-        errorMsg = errorJson['message'] ?? errorJson['error'] ?? errorMsg;
-      } catch (_) {}
-      throw Exception(errorMsg);
+      // 🔥 STEP 7: Handle error responses
+      return await _handleBookingError(
+        response: response,
+        originalRequest: bookingRequest,
+        serviceId: serviceId,
+      );
     } catch (error) {
-      print('❌ Error creating booking: $error');
+      print('❌ Booking creation failed: $error');
       rethrow;
+    } finally {
+      _httpClient.close();
+    }
+  }
+
+  // 🔥 CRITICAL: Resolve provider PID from various input formats
+  Future<String> _resolveProviderPid(String inputProviderId, String serviceId) async {
+    print('🔍 Resolving provider PID from input: $inputProviderId');
+    
+    // Case 1: Already a valid PROV- PID
+    if (inputProviderId.startsWith('PROV-')) {
+      print('✅ Input is already a PROV- PID');
+      return inputProviderId;
+    }
+
+    // Case 2: Try to fetch from service data
+    print('🔄 Attempting to fetch provider PID from service data...');
+    final serviceProviderPid = await _getProviderPidFromService(serviceId);
+    if (serviceProviderPid.isNotEmpty) {
+      print('✅ Found provider PID from service: $serviceProviderPid');
+      return serviceProviderPid;
+    }
+
+    // Case 3: Input might be a user ID, try to get provider profile
+    print('🔄 Attempting to fetch provider PID from user data...');
+    final userProviderPid = await _getProviderPidFromUser(inputProviderId);
+    if (userProviderPid.isNotEmpty) {
+      print('✅ Found provider PID from user: $userProviderPid');
+      return userProviderPid;
+    }
+
+    // Case 4: Last resort - try to use the input as-is (will likely fail)
+    print('⚠️ Could not resolve PROV- PID, using input as-is');
+    return inputProviderId;
+  }
+
+  // 🔥 Fetch provider PID from service data
+  Future<String> _getProviderPidFromService(String serviceId) async {
+    try {
+      print('🔍 Fetching service details for: $serviceId');
+      
+      final token = await _secureStorage.getToken();
+      if (token == null) return '';
+
+      final serviceUrl = '${AppConstants.baseUrl}/infinity-booking/services/$serviceId';
+      print('🔗 Service URL: $serviceUrl');
+
+      final response = await _httpClient.get(
+        Uri.parse(serviceUrl),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final serviceData = jsonDecode(response.body);
+        print('📊 Service data keys: ${serviceData.keys}');
+
+        // Look for provider PID in various possible locations
+        final possiblePidPaths = [
+          'providerPid',
+          'provider.pid',
+          'pid',
+          'providerId',
+          'provider.id',
+          'user.pid',
+          'user.providerPid',
+        ];
+
+        for (final path in possiblePidPaths) {
+          final pid = _extractValueByPath(serviceData, path);
+          if (pid != null && pid.toString().isNotEmpty) {
+            final pidStr = pid.toString();
+            print('✅ Found provider reference at $path: $pidStr');
+            
+            if (pidStr.startsWith('PROV-')) {
+              return pidStr;
+            }
+          }
+        }
+
+        // If we found a provider object, print its structure
+        if (serviceData['provider'] != null && serviceData['provider'] is Map) {
+          final provider = serviceData['provider'] as Map<String, dynamic>;
+          print('📋 Provider object structure:');
+          provider.forEach((key, value) => print('   $key: $value'));
+        }
+
+        print('❌ No valid PROV- PID found in service data');
+      } else {
+        print('❌ Failed to fetch service data: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error fetching service data: $e');
+    }
+
+    return '';
+  }
+
+  // 🔥 Extract value from nested object using dot notation
+  dynamic _extractValueByPath(Map<String, dynamic> data, String path) {
+    try {
+      var current = data;
+      final parts = path.split('.');
+      
+      for (int i = 0; i < parts.length - 1; i++) {
+        if (current[parts[i]] is Map) {
+          current = current[parts[i]] as Map<String, dynamic>;
+        } else {
+          return null;
+        }
+      }
+      
+      return current[parts.last];
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // 🔥 Fetch provider PID from user data
+  Future<String> _getProviderPidFromUser(String userId) async {
+    try {
+      final token = await _secureStorage.getToken();
+      if (token == null) return '';
+
+      // Try provider endpoint
+      final providerUrl = '${AppConstants.baseUrl}/infinity-booking/providers/$userId';
+      print('🔗 Trying provider endpoint: $providerUrl');
+      
+      final providerResponse = await _httpClient.get(
+        Uri.parse(providerUrl),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 5));
+
+      if (providerResponse.statusCode == 200) {
+        final providerData = jsonDecode(providerResponse.body);
+        final pid = providerData['pid']?.toString();
+        if (pid != null && pid.startsWith('PROV-')) {
+          print('✅ Found PID from provider endpoint: $pid');
+          return pid;
+        }
+      }
+
+      // Try user endpoint
+      final userUrl = '${AppConstants.baseUrl}/infinity-booking/users/$userId';
+      print('🔗 Trying user endpoint: $userUrl');
+      
+      final userResponse = await _httpClient.get(
+        Uri.parse(userUrl),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 5));
+
+      if (userResponse.statusCode == 200) {
+        final userData = jsonDecode(userResponse.body);
+        final pid = userData['pid']?.toString();
+        if (pid != null && pid.startsWith('PROV-')) {
+          print('✅ Found PID from user endpoint: $pid');
+          return pid;
+        }
+      }
+
+    } catch (e) {
+      print('❌ Error fetching user/provider data: $e');
+    }
+
+    return '';
+  }
+
+  // 🔥 Handle booking errors with intelligent retry logic
+  Future<BookingModel> _handleBookingError({
+    required http.Response response,
+    required Map<String, dynamic> originalRequest,
+    required String serviceId,
+  }) async {
+    String errorMsg = 'Failed to create booking (${response.statusCode})';
+    Map<String, dynamic>? errorData;
+
+    try {
+      errorData = jsonDecode(response.body);
+      errorMsg = errorData?['message'] ?? errorData?['error'] ?? errorMsg;
+      print('❌ Server error: $errorMsg');
+      print('❌ Error details: $errorData');
+    } catch (_) {
+      print('❌ Raw error response: ${response.body}');
+    }
+
+    // 🔥 Handle specific error cases
+    if (response.statusCode == 400) {
+      if (errorMsg.toLowerCase().contains('provider')) {
+        print('🔄 Provider error detected, attempting to find correct provider ID...');
+        
+        // Try to get provider ID directly from the service
+        final serviceProviderId = await _getProviderIdFromServiceDirect(serviceId);
+        if (serviceProviderId != null && serviceProviderId.startsWith('PROV-')) {
+          print('✅ Found alternative provider ID: $serviceProviderId');
+          
+          // Update and retry
+          originalRequest['providerId'] = serviceProviderId;
+          
+          final token = await _secureStorage.getToken();
+          if (token != null) {
+            print('🔄 Retrying with corrected provider ID...');
+            
+            final retryResponse = await _httpClient.post(
+              Uri.parse(AppConstants.buildUrl(AppConstants.createBookingEndpoint)),
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Content-Type': 'application/json',
+              },
+              body: jsonEncode(originalRequest),
+            ).timeout(const Duration(seconds: 20));
+
+            if (retryResponse.statusCode == 201 || retryResponse.statusCode == 200) {
+              final retryData = jsonDecode(retryResponse.body);
+              print('✅ Booking created successfully on retry!');
+              return BookingModel.fromJson(retryData);
+            }
+          }
+        }
+        
+        errorMsg = 'Unable to verify service provider. Please try again or contact support.';
+      } else if (errorMsg.toLowerCase().contains('date')) {
+        errorMsg = 'Invalid date format. Please check the selected date.';
+      } else {
+        errorMsg = 'Invalid booking data. Please check all information.';
+      }
+    } else if (response.statusCode == 401) {
+      errorMsg = 'Session expired. Please login again.';
+    } else if (response.statusCode == 403) {
+      errorMsg = 'Access denied. You do not have permission to create this booking.';
+    } else if (response.statusCode == 404) {
+      errorMsg = 'Service not found. The service may no longer be available.';
+    } else if (response.statusCode == 409) {
+      errorMsg = 'This time slot is already booked. Please choose another time.';
+    } else if (response.statusCode == 500) {
+      errorMsg = 'Server error. Please try again later.';
+    }
+
+    throw Exception(errorMsg);
+  }
+
+  // 🔥 Direct method to get provider ID from service (simpler approach)
+  Future<String?> _getProviderIdFromServiceDirect(String serviceId) async {
+    try {
+      final token = await _secureStorage.getToken();
+      if (token == null) return null;
+
+      final response = await _httpClient.get(
+        Uri.parse('${AppConstants.baseUrl}/infinity-booking/services/$serviceId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final serviceData = jsonDecode(response.body);
+        
+        // Simple direct extraction - look for common field names
+        if (serviceData['providerId'] != null) {
+          return serviceData['providerId'].toString();
+        }
+        if (serviceData['providerPid'] != null) {
+          return serviceData['providerPid'].toString();
+        }
+        if (serviceData['provider'] != null && serviceData['provider'] is Map) {
+          final provider = serviceData['provider'] as Map<String, dynamic>;
+          if (provider['pid'] != null) {
+            return provider['pid'].toString();
+          }
+          if (provider['id'] != null) {
+            return provider['id'].toString();
+          }
+        }
+      }
+    } catch (e) {
+      print('❌ Error getting provider ID directly: $e');
+    }
+    
+    return null;
+  }
+
+  // 🔥 Validate date format is DD/MM/YYYY
+  void _validateDateFormat(String date) {
+    try {
+      final parts = date.split('/');
+      if (parts.length != 3) {
+        throw FormatException('Invalid date format. Expected DD/MM/YYYY, got: $date');
+      }
+      
+      final day = int.tryParse(parts[0]);
+      final month = int.tryParse(parts[1]);
+      final year = int.tryParse(parts[2]);
+      
+      if (day == null || month == null || year == null) {
+        throw FormatException('Invalid date numbers. Expected DD/MM/YYYY, got: $date');
+      }
+      
+      print('✅ Date format validated: $date (DD/MM/YYYY)');
+    } catch (e) {
+      print('❌ Date validation error: $e');
+      rethrow;
+    }
+  }
+
+  // 🔥 Get customer ID in correct format
+  Future<String?> _getCurrentCustomerIdInCorrectFormat() async {
+    try {
+      final user = await _secureStorage.getUserData();
+      
+      // Priority 1: cid field (CUST- format)
+      if (user?.cid != null && user!.cid!.startsWith('CUST-')) {
+        return user.cid;
+      }
+      
+      // Priority 2: Saved user ID
+      final savedUserId = await _secureStorage.getUserId();
+      if (savedUserId != null && savedUserId.isNotEmpty && savedUserId.startsWith('CUST-')) {
+        return savedUserId;
+      }
+      
+      // Priority 3: Extract from token
+      final token = await _secureStorage.getToken();
+      if (token != null) {
+        final custId = _extractCustIdFromToken(token);
+        if (custId != null && custId.isNotEmpty && custId.startsWith('CUST-')) {
+          await _secureStorage.saveUserId(custId);
+          return custId;
+        }
+      }
+      
+      // Priority 4: Use user ID (might be MongoDB format)
+      if (user != null && user.id.isNotEmpty) {
+        return user.id;
+      }
+      
+      return null;
+    } catch (e) {
+      print('❌ Error getting customer ID: $e');
+      return null;
+    }
+  }
+
+  // 🔥 Extract CUST- ID from JWT token
+  String? _extractCustIdFromToken(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return null;
+      
+      final payload = parts[1];
+      final String normalized = base64Url.normalize(payload);
+      final String decoded = utf8.decode(base64Url.decode(normalized));
+      final Map<String, dynamic> payloadMap = jsonDecode(decoded);
+      
+      // Look for CUST- ID in various fields
+      final possibleFields = ['cid', 'customerId', 'customer_id', 'custId', 'user_id'];
+      
+      for (final field in possibleFields) {
+        final value = payloadMap[field]?.toString();
+        if (value != null && value.startsWith('CUST-')) {
+          return value;
+        }
+      }
+      
+      return null;
+    } catch (e) {
+      print('❌ Error decoding token: $e');
+      return null;
     }
   }
 
@@ -108,7 +512,7 @@ class BookingService {
       }
 
       final fullUrl = AppConstants.buildUrl(url);
-      final response = await http.get(
+      final response = await _httpClient.get(
         Uri.parse(fullUrl),
         headers: {
           'Authorization': 'Bearer $token',
@@ -140,7 +544,7 @@ class BookingService {
       );
       final url = AppConstants.buildUrl(endpoint);
 
-      final response = await http.get(
+      final response = await _httpClient.get(
         Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $token',
@@ -171,7 +575,7 @@ class BookingService {
       );
       final url = AppConstants.buildUrl(endpoint);
 
-      final response = await http.put(
+      final response = await _httpClient.put(
         Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $token',
@@ -203,7 +607,7 @@ class BookingService {
       );
       final url = AppConstants.buildUrl(endpoint);
 
-      final response = await http.put(
+      final response = await _httpClient.put(
         Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $token',
@@ -230,7 +634,7 @@ class BookingService {
       if (token == null) throw Exception('Not authenticated');
 
       final url = AppConstants.buildUrl(AppConstants.bookingStatisticsEndpoint);
-      final response = await http.get(
+      final response = await _httpClient.get(
         Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $token',
@@ -252,7 +656,7 @@ class BookingService {
   Future<bool> checkSlotAvailability({
     required String serviceId,
     required String providerId,
-    required String bookingDate, // Format: DD/MM/YYYY (from UI)
+    required String bookingDate,
     required String startTime,
     required String endTime,
   }) async {
@@ -260,11 +664,11 @@ class BookingService {
       final token = await _secureStorage.getToken();
       if (token == null) throw Exception('Not authenticated');
 
-      // 🔥 Convert to ISO for backend
-      final isoBookingDate = _convertToIsoDate(bookingDate);
+      // Resolve provider PID first
+      final realProviderPid = await _resolveProviderPid(providerId, serviceId);
 
       final url = AppConstants.buildUrl(AppConstants.checkSlotAvailabilityEndpoint);
-      final response = await http.post(
+      final response = await _httpClient.post(
         Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $token',
@@ -272,8 +676,8 @@ class BookingService {
         },
         body: jsonEncode({
           'serviceId': serviceId,
-          'providerId': providerId,
-          'bookingDate': isoBookingDate, // ✅ ISO format
+          'providerId': realProviderPid,
+          'bookingDate': bookingDate,
           'startTime': startTime,
           'endTime': endTime,
         }),
@@ -302,7 +706,7 @@ class BookingService {
       if (token == null) throw Exception('Not authenticated');
 
       final url = AppConstants.buildUrl(AppConstants.processPaymentEndpoint);
-      final response = await http.post(
+      final response = await _httpClient.post(
         Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $token',
@@ -338,7 +742,7 @@ class BookingService {
       );
       final url = AppConstants.buildUrl(endpoint);
 
-      final response = await http.get(
+      final response = await _httpClient.get(
         Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $token',
@@ -363,7 +767,7 @@ class BookingService {
       if (token == null) throw Exception('Not authenticated');
 
       final url = AppConstants.buildUrl(AppConstants.paymentMethodsEndpoint);
-      final response = await http.get(
+      final response = await _httpClient.get(
         Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $token',
@@ -415,7 +819,7 @@ class BookingService {
   // ✅ Reschedule booking
   Future<BookingModel> rescheduleBooking({
     required String bookingId,
-    required String newDate, // Format: DD/MM/YYYY (from UI)
+    required String newDate,
     required String newStartTime,
     required String newEndTime,
   }) async {
@@ -423,23 +827,20 @@ class BookingService {
       final token = await _secureStorage.getToken();
       if (token == null) throw Exception('Not authenticated');
 
-      // 🔥 Convert to ISO for backend
-      final isoNewDate = _convertToIsoDate(newDate);
-
       final endpoint = AppConstants.replacePathParams(
         AppConstants.rescheduleBookingEndpoint,
         id: bookingId,
       );
       final url = AppConstants.buildUrl(endpoint);
 
-      final response = await http.put(
+      final response = await _httpClient.put(
         Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
-          'newDate': isoNewDate, // ✅ ISO format
+          'newDate': newDate,
           'newStartTime': newStartTime,
           'newEndTime': newEndTime,
         }),
@@ -463,7 +864,7 @@ class BookingService {
       if (token == null) throw Exception('Not authenticated');
 
       final url = AppConstants.buildUrl(AppConstants.upcomingBookingsEndpoint);
-      final response = await http.get(
+      final response = await _httpClient.get(
         Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $token',
@@ -495,7 +896,7 @@ class BookingService {
       );
       final url = AppConstants.buildUrl(endpoint);
 
-      final response = await http.put(
+      final response = await _httpClient.put(
         Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $token',
@@ -531,7 +932,7 @@ class BookingService {
       );
       final url = AppConstants.buildUrl(endpoint);
 
-      final response = await http.post(
+      final response = await _httpClient.post(
         Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $token',
@@ -552,17 +953,5 @@ class BookingService {
       print('❌ Error rating booking: $error');
       rethrow;
     }
-  }
-
-  // 🔥 HELPER: Convert DD/MM/YYYY → YYYY-MM-DD
-  String _convertToIsoDate(String ddMmYyyy) {
-    final parts = ddMmYyyy.split('/');
-    if (parts.length == 3) {
-      final day = parts[0].padLeft(2, '0');
-      final month = parts[1].padLeft(2, '0');
-      final year = parts[2];
-      return '$year-$month-$day';
-    }
-    throw FormatException('Invalid date format. Expected DD/MM/YYYY, got: $ddMmYyyy');
   }
 }

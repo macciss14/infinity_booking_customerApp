@@ -25,7 +25,7 @@ class ImagePickerService {
 
   Future<List<File>> pickMultipleImages() async {
     try {
-      final List<XFile>? images = await _imagePicker.pickMultiImage(
+      final List<XFile> images = await _imagePicker.pickMultiImage(
         imageQuality: 80,
         maxWidth: 800,
         maxHeight: 800,

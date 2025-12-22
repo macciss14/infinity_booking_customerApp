@@ -331,10 +331,10 @@ class _TimeSlotsDisplayState extends State<TimeSlotsDisplay> {
                 const SizedBox(height: 4),
                 Text(
                     '${getDayDisplayName(_selectedSlot!['day'])} • ${_selectedSlot!['formattedDate']}',
-                    style: TextStyle(fontSize: 14)),
+                    style: const TextStyle(fontSize: 14)),
                 Text(
                     '${formatTime(_selectedSlot!['timeSlot']['startTime'])} - ${formatTime(_selectedSlot!['timeSlot']['endTime'])}',
-                    style: TextStyle(fontWeight: FontWeight.w600)),
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
               ],
             ),
           ),

@@ -358,14 +358,16 @@ class ServiceModel {
     if (subcategories != null) {
       for (var sub in subcategories!) {
         final name = sub['name'] ?? sub['title'];
-        if (name != null && name.toString().isNotEmpty)
+        if (name != null && name.toString().isNotEmpty) {
           names.add(name.toString());
+        }
       }
     }
     if (subcategory != null) {
       final name = subcategory!['name'] ?? subcategory!['title'];
-      if (name != null && name.toString().isNotEmpty)
+      if (name != null && name.toString().isNotEmpty) {
         names.add(name.toString());
+      }
     }
     if (subcategoryName != null && subcategoryName!.isNotEmpty) {
       names.add(subcategoryName!);
@@ -458,7 +460,7 @@ class ServiceModel {
       providerId = providerMap['id']?.toString() ??
           providerMap['_id']?.toString() ??
           providerMap['providerId']?.toString();
-      providerPid = providerMap['pid']?.toString()?.trim(); // ✅ CRITICAL
+      providerPid = providerMap['pid']?.toString().trim(); // ✅ CRITICAL
     } else {
       // Fallback to top-level fields (used in service list responses)
       providerName = serviceData['providerName']?.toString();
@@ -667,11 +669,11 @@ class ServiceModel {
   }
 
   static String? _parseImageUrl(Map<String, dynamic> data) {
-    final banner = data['banner']?.toString()?.trim();
-    final imageUrl = data['imageUrl']?.toString()?.trim();
-    final image = data['image']?.toString()?.trim();
-    final thumbnail = data['thumbnail']?.toString()?.trim();
-    final coverImage = data['coverImage']?.toString()?.trim();
+    final banner = data['banner']?.toString().trim();
+    final imageUrl = data['imageUrl']?.toString().trim();
+    final image = data['image']?.toString().trim();
+    final thumbnail = data['thumbnail']?.toString().trim();
+    final coverImage = data['coverImage']?.toString().trim();
     return banner ?? imageUrl ?? image ?? thumbnail ?? coverImage;
   }
 

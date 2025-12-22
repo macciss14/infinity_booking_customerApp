@@ -9,7 +9,7 @@ class AppConstants {
   // API Configuration — ✅ CORRECTED
   static const String baseUrl =
       'https://infinity-booking-backend1.onrender.com';
-  static const String apiBaseUrl = '${baseUrl}/'; // ✅ Trailing slash
+  static const String apiBaseUrl = '$baseUrl/'; // ✅ Trailing slash
 
   // Auth Endpoints
   static const String registerEndpoint =
@@ -138,10 +138,12 @@ class AppConstants {
     var result = endpoint;
     if (id != null) result = result.replaceAll('{id}', id);
     if (serviceId != null) result = result.replaceAll('{serviceId}', serviceId);
-    if (subcategoryId != null)
+    if (subcategoryId != null) {
       result = result.replaceAll('{subcategoryId}', subcategoryId);
-    if (categoryId != null)
+    }
+    if (categoryId != null) {
       result = result.replaceAll('{categoryId}', categoryId);
+    }
     if (reference != null) result = result.replaceAll('{reference}', reference);
     if (pid != null) result = result.replaceAll('{pid}', pid); // ✅ Handle PID
     return result;
@@ -395,10 +397,10 @@ ThemeData appTheme() {
   return ThemeData(
     useMaterial3: true,
     scaffoldBackgroundColor: AppColors.scaffoldBackground,
-    appBarTheme: AppBarTheme(
+    appBarTheme: const AppBarTheme(
       backgroundColor: AppColors.primary,
       foregroundColor: Colors.white,
-      titleTextStyle: const TextStyle(
+      titleTextStyle: TextStyle(
         fontSize: 20,
         fontWeight: FontWeight.bold,
         color: Colors.white,
@@ -572,12 +574,10 @@ ThemeData appTheme() {
       primary: AppColors.primary,
       secondary: AppColors.secondary,
       surface: AppColors.white,
-      background: AppColors.scaffoldBackground,
       error: AppColors.error,
       onPrimary: AppColors.white,
       onSecondary: AppColors.white,
       onSurface: AppColors.textPrimary,
-      onBackground: AppColors.textPrimary,
       onError: AppColors.white,
     ),
     dividerTheme: const DividerThemeData(

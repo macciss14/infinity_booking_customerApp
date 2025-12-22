@@ -67,8 +67,27 @@ class AuthService {
         final token = data['token'];
 
         final user = UserModel.fromJson(data);
+
+        // Save token and user data
         await _secureStorage.saveToken(token);
         await _secureStorage.saveUserData(user);
+
+        // 🔥 NEW: Save customer ID separately for easy access
+        if (user.id.isNotEmpty) {
+          await _secureStorage.saveUserId(user.id);
+          print('✅ Customer ID saved: ${user.id}');
+        } else {
+          // Try to get customer ID from response data
+          final customerId = data['customerId']?.toString() ??
+              data['customer']?['_id']?.toString() ??
+              data['user']?['_id']?.toString();
+
+          if (customerId != null && customerId.isNotEmpty) {
+            await _secureStorage.saveUserId(customerId);
+            print('✅ Customer ID saved from response: $customerId');
+          }
+        }
+
         return user;
       } else {
         final errorData = jsonDecode(response.body);
@@ -79,8 +98,6 @@ class AuthService {
       rethrow;
     }
   }
-
-  // lib/services/auth_service.dart
 
 // ─── LOGOUT ─────────────────────────────────────────────
   Future<void> logout() async {

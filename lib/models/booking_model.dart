@@ -143,7 +143,7 @@ class BookingModel {
   }
 
   factory BookingModel.fromJson(Map<String, dynamic> json) {
-    DateTime _parseBookingDate(dynamic dateData) {
+    DateTime parseBookingDate(dynamic dateData) {
       if (dateData == null) return DateTime.now();
       if (dateData is String) {
         if (dateData.contains('/')) {
@@ -163,7 +163,7 @@ class BookingModel {
       return DateTime.now();
     }
 
-    DateTime? _parseDate(dynamic dateData) {
+    DateTime? parseDate(dynamic dateData) {
       if (dateData == null) return null;
       if (dateData is String) return DateTime.tryParse(dateData);
       if (dateData is Map && dateData['\$date'] != null) {
@@ -212,7 +212,7 @@ class BookingModel {
           json['customer']?['fullname']?.toString() ??
           json['user']?['fullname']?.toString() ??
           'Customer',
-      bookingDate: _parseBookingDate(json['bookingDate'] ?? json['date']),
+      bookingDate: parseBookingDate(json['bookingDate'] ?? json['date']),
       startTime: json['startTime']?.toString() ?? '09:00',
       endTime: json['endTime']?.toString() ?? '10:00',
       totalAmount: (json['totalAmount'] as num?)?.toDouble() ??
@@ -224,11 +224,11 @@ class BookingModel {
       bookingReference: json['bookingReference']?.toString() ??
           json['reference']?.toString(),
       notes: json['notes']?.toString(),
-      status: json['status']?.toString()?.toLowerCase() ?? 'pending',
-      createdAt: _parseDate(json['createdAt']) ?? DateTime.now(),
-      updatedAt: _parseDate(json['updatedAt']),
+      status: json['status']?.toString().toLowerCase() ?? 'pending',
+      createdAt: parseDate(json['createdAt']) ?? DateTime.now(),
+      updatedAt: parseDate(json['updatedAt']),
       cancellationReason: json['cancellationReason']?.toString(),
-      cancellationDate: _parseDate(json['cancellationDate']),
+      cancellationDate: parseDate(json['cancellationDate']),
       cancellationPolicy: json['cancellationPolicy']?.toString(),
       refundAmount: json['refundAmount']?.toString(),
       isPaid: json['isPaid'] == true || json['paymentStatus'] == 'paid',
@@ -238,7 +238,7 @@ class BookingModel {
       remainingAmount: (json['remainingAmount'] as num?)?.toDouble(),
       invoiceNumber: json['invoiceNumber']?.toString(),
       paymentStatus: json['paymentStatus']?.toString(),
-      paymentDate: _parseDate(json['paymentDate']),
+      paymentDate: parseDate(json['paymentDate']),
       serviceDetails: serviceDetails,
       providerDetails: providerDetails,
       bookingItems: json['bookingItems'] is List ? List.from(json['bookingItems']) : null,

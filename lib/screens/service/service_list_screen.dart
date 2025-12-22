@@ -18,13 +18,13 @@ class ServiceListScreen extends StatefulWidget {
   final String? subcategoryName;
 
   const ServiceListScreen({
-    Key? key,
+    super.key,
     this.categoryId,
     this.subcategoryId,
     this.searchQuery,
     this.categoryName,
     this.subcategoryName,
-  }) : super(key: key);
+  });
 
   @override
   State<ServiceListScreen> createState() => _ServiceListScreenState();
@@ -138,7 +138,7 @@ class _ServiceListScreenState extends State<ServiceListScreen> {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(25),
-            borderSide: BorderSide(color: AppColors.primaryLight, width: 2),
+            borderSide: const BorderSide(color: AppColors.primaryLight, width: 2),
           ),
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -487,7 +487,7 @@ class _ServiceListScreenState extends State<ServiceListScreen> {
                             ),
                             child: Text(
                               categoryName,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 10,
                                 color: AppColors.primary,
                                 fontWeight: FontWeight.w500,
@@ -504,7 +504,7 @@ class _ServiceListScreenState extends State<ServiceListScreen> {
                               ),
                               child: Text(
                                 subcategoryNames.split(', ').first,
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 10,
                                   color: AppColors.secondary,
                                   fontWeight: FontWeight.w500,
@@ -542,7 +542,7 @@ class _ServiceListScreenState extends State<ServiceListScreen> {
                           ),
                           child: Text(
                             service.formattedPrice,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               color: AppColors.secondary,
                               fontSize: 14,

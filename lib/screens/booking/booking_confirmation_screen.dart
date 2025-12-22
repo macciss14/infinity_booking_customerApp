@@ -28,7 +28,7 @@ class BookingConfirmationScreen extends StatelessWidget {
         ),
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(AppConstants.defaultPadding),
+        padding: const EdgeInsets.all(AppConstants.defaultPadding),
         child: Column(
           children: [
             const SizedBox(height: 24),
@@ -41,7 +41,7 @@ class BookingConfirmationScreen extends StatelessWidget {
                 color: Colors.green.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.check_circle,
                 size: 60,
                 color: Colors.green,
@@ -52,7 +52,7 @@ class BookingConfirmationScreen extends StatelessWidget {
             // Title
             Text(
               skipPayment ? 'Booking Created!' : 'Booking Confirmed!',
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
                 color: Colors.green,
@@ -81,7 +81,7 @@ class BookingConfirmationScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Padding(
-                padding: EdgeInsets.all(20),
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -89,7 +89,7 @@ class BookingConfirmationScreen extends StatelessWidget {
                     if (booking.bookingReference != null)
                       Container(
                         padding:
-                            EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(
                           color: Colors.blue[50],
                           borderRadius: BorderRadius.circular(8),
@@ -97,7 +97,7 @@ class BookingConfirmationScreen extends StatelessWidget {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.receipt, color: Colors.blue, size: 16),
+                            const Icon(Icons.receipt, color: Colors.blue, size: 16),
                             const SizedBox(width: 8),
                             Text(
                               'Booking ID: ${booking.bookingReference}',
@@ -125,14 +125,14 @@ class BookingConfirmationScreen extends StatelessWidget {
                       value: booking.providerName,
                     ),
                     // 🔥 NEW: Show Provider ID (matches Vue.js)
-                    if (booking.providerId != null) ...[
-                      _buildDetailRow(
-                        context: context,
-                        icon: Icons.person_outline,
-                        label: 'Provider ID',
-                        value: booking.providerId!,
-                      ),
-                    ],
+                    ...[
+                    _buildDetailRow(
+                      context: context,
+                      icon: Icons.person_outline,
+                      label: 'Provider ID',
+                      value: booking.providerId!,
+                    ),
+                  ],
                     _buildDetailRow(
                       context: context,
                       icon: Icons.calendar_today,
@@ -164,7 +164,7 @@ class BookingConfirmationScreen extends StatelessWidget {
                     // Payment Status
                     if (skipPayment)
                       Container(
-                        padding: EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: Colors.orange[50],
                           borderRadius: BorderRadius.circular(8),
@@ -189,7 +189,7 @@ class BookingConfirmationScreen extends StatelessWidget {
                       )
                     else if (paymentResult != null)
                       Container(
-                        padding: EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: Colors.green[50],
                           borderRadius: BorderRadius.circular(8),
@@ -235,7 +235,7 @@ class BookingConfirmationScreen extends StatelessWidget {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      padding: EdgeInsets.symmetric(vertical: 16),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -264,8 +264,8 @@ class BookingConfirmationScreen extends StatelessWidget {
                     },
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.primary,
-                      side: BorderSide(color: AppColors.primary),
-                      padding: EdgeInsets.symmetric(vertical: 16),
+                      side: const BorderSide(color: AppColors.primary),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),

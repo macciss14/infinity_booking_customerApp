@@ -15,6 +15,7 @@ class UserModel {
   final bool? isActive;
   final bool? isVerified;
   final String? authToken;
+  final String? cid; // ✅ ADDED: For CUST- formatted customer ID
 
   UserModel({
     required this.id,
@@ -31,11 +32,42 @@ class UserModel {
     this.isActive,
     this.isVerified,
     this.authToken,
+    this.cid, // ✅ ADDED
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     // Extract user ID from top-level
     final userId = (json['_id'] ?? json['id'] ?? '').toString();
+
+    // ✅ EXTRACT CUST- ID FROM VARIOUS SOURCES
+    String? cid;
+    // Look for cid field in JSON
+    cid = json['cid']?.toString();
+    
+    // If not found, check if any field starts with CUST-
+    if (cid == null || !cid.startsWith('CUST-')) {
+      for (var key in json.keys) {
+        final value = json[key]?.toString();
+        if (value != null && value.startsWith('CUST-')) {
+          cid = value;
+          print('🔍 Found CUST- ID in $key: $cid');
+          break;
+        }
+      }
+    }
+    
+    // Also check customerProfile for CUST- IDs
+    if (cid == null && json.containsKey('customerProfile') && json['customerProfile'] is Map) {
+      final customerProfile = Map<String, dynamic>.from(json['customerProfile']);
+      for (var key in customerProfile.keys) {
+        final value = customerProfile[key]?.toString();
+        if (value != null && value.startsWith('CUST-')) {
+          cid = value;
+          print('🔍 Found CUST- ID in customerProfile.$key: $cid');
+          break;
+        }
+      }
+    }
 
     // Extract customer profile ID if exists
     String? customerProfileId;
@@ -67,9 +99,8 @@ class UserModel {
           userData['profilephoto'] ??
           userData['profileImage'] ??
           userData['avatar'] ??
-          userData['photo'] ??
-          null,
-      address: userData['address'] ?? userData['location'] ?? null,
+          userData['photo'],
+      address: userData['address'] ?? userData['location'],
       createdAt: userData['createdAt'] != null
           ? DateTime.tryParse(userData['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
@@ -81,6 +112,7 @@ class UserModel {
       isActive: json['isActive'] ?? true,
       isVerified: json['isVerified'] ?? false,
       authToken: json['authToken'] ?? json['token'],
+      cid: cid, // ✅ ADDED
     );
   }
 
@@ -99,6 +131,7 @@ class UserModel {
       'role': role,
       'isActive': isActive,
       'isVerified': isVerified,
+      'cid': cid, // ✅ ADDED
     };
   }
 
@@ -117,6 +150,7 @@ class UserModel {
     bool? isActive,
     bool? isVerified,
     String? authToken,
+    String? cid, // ✅ ADDED
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -133,6 +167,7 @@ class UserModel {
       isActive: isActive ?? this.isActive,
       isVerified: isVerified ?? this.isVerified,
       authToken: authToken ?? this.authToken,
+      cid: cid ?? this.cid, // ✅ ADDED
     );
   }
 
@@ -168,8 +203,36 @@ class UserModel {
     return email.isNotEmpty ? email.substring(0, 1).toUpperCase() : 'U';
   }
 
+  // ✅ NEW: Get customer ID in correct format for bookings
+  String? get bookingCustomerId {
+    // Priority 1: Use cid (CUST- format)
+    if (cid != null && cid!.startsWith('CUST-')) {
+      return cid;
+    }
+    
+    // Priority 2: Check if customerProfileId is in CUST- format
+    if (customerProfileId != null && customerProfileId!.startsWith('CUST-')) {
+      return customerProfileId;
+    }
+    
+    // Priority 3: Check if id is in CUST- format (unlikely but possible)
+    if (id.startsWith('CUST-')) {
+      return id;
+    }
+    
+    // Priority 4: Return MongoDB id as fallback (will need conversion)
+    return id;
+  }
+
+  // ✅ NEW: Check if we have CUST- ID available
+  bool get hasCustId {
+    return (cid != null && cid!.startsWith('CUST-')) ||
+           (customerProfileId != null && customerProfileId!.startsWith('CUST-')) ||
+           (id.startsWith('CUST-'));
+  }
+
   @override
   String toString() {
-    return 'UserModel(id: $id, fullname: $fullname, email: $email, pid: $pid, role: $role)';
+    return 'UserModel(id: $id, cid: $cid, fullname: $fullname, email: $email, pid: $pid, role: $role)';
   }
 }

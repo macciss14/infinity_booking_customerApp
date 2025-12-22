@@ -284,13 +284,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 8),
             ],
-            if (user.createdAt != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Member since ${_formatDate(user.createdAt!)}',
-                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-              ),
-            ],
+            ...[
+            const SizedBox(height: 8),
+            Text(
+              'Member since ${_formatDate(user.createdAt!)}',
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+            ),
+          ],
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,

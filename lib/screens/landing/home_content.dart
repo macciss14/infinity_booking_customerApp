@@ -92,21 +92,21 @@ class HomeContent extends StatelessWidget {
               color: Colors.blue[50],
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Column(
+            child: const Column(
               children: [
-                const Text(
+                Text(
                   'Ready to get started?',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
+                SizedBox(height: 8),
+                Text(
                   'Create an account or login to start booking services',
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
               ],
             ),
           ),

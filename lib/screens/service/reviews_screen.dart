@@ -43,7 +43,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
     } catch (error) {
       print('Error loading reviews: $error');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load reviews. Please try again.')),
+        const SnackBar(content: Text('Failed to load reviews. Please try again.')),
       );
     } finally {
       setState(() => _loading = false);
@@ -85,14 +85,14 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
         ],
       ),
       body: _loading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : _reviews.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.star, size: 64, color: Colors.grey[400]),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
                       Text(
                         'No Reviews Yet',
                         style: TextStyle(
@@ -101,7 +101,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                           color: Colors.grey[600],
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
                         'Be the first to review this service!',
                         style: TextStyle(color: Colors.grey[500]),
@@ -110,13 +110,13 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                   ),
                 )
               : SingleChildScrollView(
-                  padding: EdgeInsets.all(AppConstants.defaultPadding),
+                  padding: const EdgeInsets.all(AppConstants.defaultPadding),
                   child: Column(
                     children: [
                       // 🔥 Statistics Card (Vue-matching)
                       Card(
                         child: Padding(
-                          padding: EdgeInsets.all(16),
+                          padding: const EdgeInsets.all(16),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
@@ -141,12 +141,12 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                           ),
                         ),
                       ),
-                      SizedBox(height: 20),
+                      const SizedBox(height: 20),
 
                       // 🔥 Reviews List (Vue-matching provider responses)
                       ListView.builder(
                         shrinkWrap: true,
-                        physics: NeverScrollableScrollPhysics(),
+                        physics: const NeverScrollableScrollPhysics(),
                         itemCount: _reviews.length,
                         itemBuilder: (context, index) {
                           return _buildReviewCard(_reviews[index]);
@@ -179,7 +179,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
             ),
           ),
         ),
-        SizedBox(height: 8),
+        const SizedBox(height: 8),
         Text(
           label,
           style: TextStyle(
@@ -193,9 +193,9 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
 
   Widget _buildReviewCard(ReviewModel review) {
     return Card(
-      margin: EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 16),
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -211,24 +211,24 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                       child: Text(
                         _getInitials(
                             review.getReviewerName()), // ✅ Use model helper
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
                         ),
                       ),
                     ),
-                    SizedBox(width: 12),
+                    const SizedBox(width: 12),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           review.getReviewerName(), // ✅ Use model helper
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        SizedBox(height: 2),
+                        const SizedBox(height: 2),
                         Text(
                           _formatDate(review.createdAt),
                           style: TextStyle(
@@ -241,15 +241,15 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                   ],
                 ),
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: Colors.amber.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.star, size: 16, color: Colors.amber),
-                      SizedBox(width: 4),
+                      const Icon(Icons.star, size: 16, color: Colors.amber),
+                      const SizedBox(width: 4),
                       Text(
                         (review.rating ?? 0).toStringAsFixed(1),
                         style: TextStyle(
@@ -262,7 +262,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                 ),
               ],
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
 
             // 🔥 Comment with Vue fallback
             Text(
@@ -273,19 +273,19 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                 color: Colors.grey[800],
               ),
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
 
             // 🔥 Provider Response (EXACTLY LIKE VUE)
             if (review.hasProviderResponse)
               Container(
-                padding: EdgeInsets.all(12),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.blue[50],
-                  border: Border(
+                  border: const Border(
                       left: BorderSide(
-                          color: const Color.fromARGB(255, 86, 170, 239),
+                          color: Color.fromARGB(255, 86, 170, 239),
                           width: 3)),
-                  borderRadius: BorderRadius.only(
+                  borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(4),
                     topRight: Radius.circular(4),
                     bottomRight: Radius.circular(4),
@@ -315,7 +315,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                           ),
                       ],
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Text(
                       review.response!,
                       style: TextStyle(
@@ -329,7 +329,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
               ),
 
             // 🔥 Footer (Vue-matching helpful count and status)
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -337,7 +337,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                   Row(
                     children: [
                       Icon(Icons.thumb_up, size: 16, color: Colors.grey[600]),
-                      SizedBox(width: 4),
+                      const SizedBox(width: 4),
                       Text(
                         '${review.helpfulCount} helpful',
                         style: TextStyle(
@@ -350,7 +350,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                 else
                   Container(),
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: review.status == 'published'
                         ? Colors.green.withOpacity(0.1)

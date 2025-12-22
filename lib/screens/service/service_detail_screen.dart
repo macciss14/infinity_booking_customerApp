@@ -377,7 +377,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                     child: Center(
                       child: Text(
                         service.providerInitials,
-                        style: TextStyle(
+                        style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
                             color: AppColors.primary),
@@ -413,7 +413,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                               ),
                               child: Row(
                                 children: [
-                                  Icon(Icons.verified,
+                                  const Icon(Icons.verified,
                                       size: 14, color: Colors.blue),
                                   const SizedBox(width: 4),
                                   Text('Verified',
@@ -433,7 +433,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                           padding: const EdgeInsets.only(top: 4),
                           child: Row(
                             children: [
-                              Icon(Icons.star, size: 14, color: Colors.amber),
+                              const Icon(Icons.star, size: 14, color: Colors.amber),
                               const SizedBox(width: 4),
                               Text(rating.toStringAsFixed(1),
                                   style: const TextStyle(fontSize: 12)),
@@ -778,8 +778,8 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                       : Colors.grey[600],
                   fontWeight: FontWeight.w500)),
           if (hasAction)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
+            const Padding(
+              padding: EdgeInsets.only(top: 4),
               child: Text('Tap to view',
                   style: TextStyle(
                       fontSize: 10,

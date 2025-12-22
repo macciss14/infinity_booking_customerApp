@@ -100,7 +100,7 @@ class _HomeScreenState extends State<HomeScreen> {
         await Future.delayed(const Duration(seconds: 1));
       },
       child: SingleChildScrollView(
-        padding: EdgeInsets.all(AppConstants.defaultPadding),
+        padding: const EdgeInsets.all(AppConstants.defaultPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -117,13 +117,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Hello, $userName! ',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
                           color: AppColors.textPrimary,
                         )),
                     const SizedBox(height: 8),
-                    Text('Book your favorite services with ease',
+                    const Text('Book your favorite services with ease',
                         style: TextStyle(
                           fontSize: 16,
                           color: AppColors.textSecondary,
@@ -133,7 +133,7 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             const SizedBox(height: 32),
-            Text('Quick Actions',
+            const Text('Quick Actions',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -175,7 +175,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             const SizedBox(height: 32),
-            Text('Popular Categories',
+            const Text('Popular Categories',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -221,7 +221,7 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             const SizedBox(height: 32),
-            Text('Featured Services',
+            const Text('Featured Services',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -256,7 +256,7 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             const SizedBox(height: 32),
-            Text('Recent Bookings',
+            const Text('Recent Bookings',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -365,12 +365,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             category.imageUrl!,
                             width: 24,
                             height: 24,
-                            errorBuilder: (context, error, stackTrace) => Icon(
+                            errorBuilder: (context, error, stackTrace) => const Icon(
                                 Icons.category,
                                 color: AppColors.primary,
                                 size: 24),
                           )
-                        : Icon(Icons.category,
+                        : const Icon(Icons.category,
                             color: AppColors.primary, size: 24),
                   ),
                   const SizedBox(height: 8),
@@ -387,7 +387,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 4),
                   Text(
                     '$count services',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 10,
                       color: AppColors.textSecondary,
                     ),
@@ -425,7 +425,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                   title: Text(
                     service.name,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
                     ),
@@ -439,14 +439,14 @@ class _HomeScreenState extends State<HomeScreen> {
                             : service.description,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: AppColors.textSecondary),
+                        style: const TextStyle(color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: 4),
                       Row(
                         children: [
                           Text(
                             service.formattedPrice,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               color: AppColors.secondary,
                             ),
@@ -455,7 +455,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           if (service.rating != null && service.rating! > 0)
                             Row(
                               children: [
-                                Icon(Icons.star, size: 14, color: Colors.amber),
+                                const Icon(Icons.star, size: 14, color: Colors.amber),
                                 const SizedBox(width: 2),
                                 Text(
                                   service.rating!.toStringAsFixed(1),
@@ -470,7 +470,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ],
                   ),
-                  trailing: Icon(
+                  trailing: const Icon(
                     Icons.arrow_forward_ios,
                     size: 16,
                     color: AppColors.textSecondary,
@@ -507,7 +507,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   title: Text(
                     booking.serviceName,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
                     ),
@@ -517,7 +517,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Text(
                         '${booking.formattedBookingDate} • ${booking.formattedTimeRange}',
-                        style: TextStyle(color: AppColors.textSecondary),
+                        style: const TextStyle(color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: 4),
                       Container(
@@ -545,14 +545,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Text(
                         '${booking.totalAmount.toStringAsFixed(2)} ${booking.currency}',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           color: AppColors.secondary,
                           fontSize: 12,
                         ),
                       ),
                       if (booking.isPendingPayment)
-                        Text(
+                        const Text(
                           'Payment Pending',
                           style: TextStyle(
                             fontSize: 10,
@@ -726,7 +726,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Row(
         children: [
-          Icon(Icons.error, color: Colors.red),
+          const Icon(Icons.error, color: Colors.red),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -752,7 +752,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 16),
           Text(
             message,
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 16),
           ),
         ],
       ),

@@ -1,4 +1,4 @@
-// lib/screens/booking/skip_payment_confirmation_screen.dart - COMPLETE FIXED VERSION
+// lib/screens/booking/skip_payment_confirmation_screen.dart
 import 'package:flutter/material.dart';
 import '../../models/service_model.dart';
 import '../../models/booking_model.dart';
@@ -47,25 +47,31 @@ class _SkipPaymentConfirmationScreenState
       return;
     }
 
-    // Get provider ID with fallback
+    // Get provider ID with fallback - CRITICAL
     final String providerId = widget.providerId ?? 
                             widget.service.providerPid ?? 
                             widget.service.providerId ?? '';
     
     if (providerId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Provider information is missing')),
+        const SnackBar(content: Text('Provider information is missing. Please go back and try again.')),
       );
       return;
     }
+
+    // Log provider ID for debugging
+    print('🔍 Provider ID for skip payment booking: $providerId');
+    print('🔍 Provider ID starts with PROV-: ${providerId.startsWith('PROV-')}');
 
     setState(() => _loading = true);
 
     try {
       print('📋 Creating booking without payment...');
+      print('   - Service ID: ${widget.service.id}');
       print('   - Provider ID: $providerId');
       print('   - Date: ${widget.bookingDate}');
       print('   - Time: $startTime - $endTime');
+      print('   - Amount: ${widget.totalAmount}');
       
       final booking = await _bookingService.createBooking(
         serviceId: widget.service.id,
@@ -79,6 +85,7 @@ class _SkipPaymentConfirmationScreenState
       );
 
       print('✅ Booking created successfully: ${booking.id}');
+      print('✅ Booking status: ${booking.status}');
       
       RouteHelper.goToBookingConfirmation(
         context,
@@ -88,13 +95,17 @@ class _SkipPaymentConfirmationScreenState
     } catch (error) {
       print('❌ Booking creation failed: $error');
       
-      String errorMessage = 'Failed to create booking';
+      String errorMessage = 'Failed to create booking. Please try again.';
       if (error.toString().contains('providerId')) {
         errorMessage = 'Provider information error. Please go back and try again.';
+      } else if (error.toString().contains('customerId')) {
+        errorMessage = 'User session error. Please log in again.';
       } else if (error.toString().contains('400')) {
         errorMessage = 'Invalid booking data. Please check your selection.';
       } else if (error.toString().contains('401')) {
         errorMessage = 'Session expired. Please log in again.';
+      } else if (error.toString().contains('409')) {
+        errorMessage = 'Time slot already booked. Please choose another time.';
       }
       
       ScaffoldMessenger.of(context).showSnackBar(
@@ -133,9 +144,9 @@ class _SkipPaymentConfirmationScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Booking Summary',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -156,9 +167,9 @@ class _SkipPaymentConfirmationScreenState
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
+                const Text(
                   'Total Amount',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
@@ -191,11 +202,14 @@ class _SkipPaymentConfirmationScreenState
               color: Colors.grey[600],
             ),
           ),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: FontWeight.w500,
-              color: valueColor,
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                color: valueColor,
+              ),
             ),
           ),
         ],
@@ -265,18 +279,18 @@ class _SkipPaymentConfirmationScreenState
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.grey[300]!),
               ),
-              child: Column(
+              child: const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Important Information',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
+                  SizedBox(height: 8),
+                  Text(
                     '• This booking requires payment confirmation before service\n'
                     '• You can pay later from your bookings page\n'
                     '• Provider may cancel if payment is not confirmed\n'
