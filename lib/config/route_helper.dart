@@ -1,4 +1,4 @@
-// lib/config/route_helper.dart - COMPLETE CORRECTED VERSION
+// lib/config/route_helper.dart - COMPLETE VERSION WITH NOTIFICATIONS
 import 'package:flutter/material.dart';
 
 // Auth Screens
@@ -39,6 +39,11 @@ import '../screens/profile/edit_profile_screen.dart';
 import '../models/booking_model.dart';
 import '../models/service_model.dart';
 
+// ✅ ADD NOTIFICATIONS SCREEN IMPORT
+import '../screens/notifications/notifications_screen.dart';
+//reviews
+import '../screens/service/write_review_screen.dart';
+
 class RouteHelper {
   // Initial/landing routes
   static const String initial = '/';
@@ -74,6 +79,10 @@ class RouteHelper {
   // Profile
   static const String editProfile = '/edit-profile';
 
+  // ✅ ADD NOTIFICATIONS ROUTE
+  static const String notifications = '/notifications';
+  //reviews route
+  static const String writeReview = '/write-review';
   // Route generator
   static Route<dynamic> generateRoute(RouteSettings settings) {
     final args = settings.arguments;
@@ -174,31 +183,42 @@ class RouteHelper {
           return MaterialPageRoute(
             builder: (_) => ReviewsScreen(
               serviceId: args['serviceId'] as String,
+              serviceName: args['serviceName'] as String?,
             ),
           );
         }
         return _errorRoute('Service ID required for reviews');
 
-      // ✅ FIXED: Booking Screen with Provider ID - CRITICAL FOR 400 ERROR FIX
+      case writeReview:
+        if (args is Map<String, dynamic>) {
+          return MaterialPageRoute(
+            builder: (_) => WriteReviewScreen(
+              serviceId: args['serviceId'] as String,
+              serviceName: args['serviceName'] as String?,
+              bookingId: args['bookingId'] as String?,
+            ),
+          );
+        }
+        return _errorRoute('Service ID required for writing review');
+      // ✅ FIXED: Booking Screen with Provider ID
       case booking:
         if (args is String) {
           return MaterialPageRoute(
             builder: (_) => BookingScreen(serviceId: args),
           );
         } else if (args is Map<String, dynamic>) {
-          // ✅ IMPORTANT: Handle both serviceId and providerId
           final serviceId = args['serviceId'] as String?;
           final providerId = args['providerId'] as String?;
           final service = args['service'] as ServiceModel?;
-          
+
           if (serviceId == null) {
             return _errorRoute('Service ID is required for booking');
           }
-          
+
           return MaterialPageRoute(
             builder: (_) => BookingScreen(
               serviceId: serviceId,
-              providerId: providerId, // ✅ Pass providerId to booking screen
+              providerId: providerId,
             ),
           );
         } else if (args is ServiceModel) {
@@ -208,7 +228,7 @@ class RouteHelper {
         }
         return _errorRoute('Service ID required for booking');
 
-      // ✅ FIXED: Payment Method Screen - ACCEPTS PROVIDERID
+      // ✅ FIXED: Payment Method Screen
       case paymentMethod:
         if (args is Map<String, dynamic>) {
           final service = args['service'];
@@ -233,13 +253,13 @@ class RouteHelper {
               totalAmount: args['totalAmount'] as double,
               bookingDate: args['bookingDate'] as String,
               notes: args['notes'] as String?,
-              providerId: args['providerId'] as String?, // ✅ ADDED
+              providerId: args['providerId'] as String?,
             ),
           );
         }
         return _errorRoute('Payment method screen requires booking data');
 
-      // ✅ FIXED: Skip Payment Confirmation Screen - ACCEPTS PROVIDERID
+      // ✅ FIXED: Skip Payment Confirmation Screen
       case skipPayment:
         if (args is Map<String, dynamic>) {
           final service = args['service'];
@@ -264,7 +284,7 @@ class RouteHelper {
               totalAmount: args['totalAmount'] as double,
               bookingDate: args['bookingDate'] as String,
               notes: args['notes'] as String?,
-              providerId: args['providerId'] as String?, // ✅ ADDED
+              providerId: args['providerId'] as String?,
             ),
           );
         }
@@ -301,6 +321,10 @@ class RouteHelper {
       // Edit Profile
       case editProfile:
         return MaterialPageRoute(builder: (_) => const EditProfileScreen());
+
+      // ✅ ADD NOTIFICATIONS SCREEN CASE
+      case notifications:
+        return MaterialPageRoute(builder: (_) => const NotificationsScreen());
 
       default:
         return _errorRoute('Route not found: ${settings.name}');
@@ -351,7 +375,8 @@ class RouteHelper {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 32, vertical: 16),
                   ),
                   child: const Text(
                     'Go to Home',
@@ -463,51 +488,6 @@ class RouteHelper {
     );
   }
 
-  // ✅ CRITICAL FIX: NEW NAVIGATION HELPER - Booking with Provider ID (EXACTLY LIKE VUE)
-  /// Navigate to booking flow with provider ID - FIXES 400 ERROR
-  static void goToBookingWithProvider({
-    required BuildContext context,
-    required String serviceId,
-    required String providerId,
-    ServiceModel? service,
-  }) {
-    print('🔗 Navigating to booking with provider ID: $providerId');
-    
-    pushNamed(
-      context,
-      booking,
-      arguments: {
-        'serviceId': serviceId,
-        'providerId': providerId, // ✅ Critical for fixing 400 error
-        if (service != null) 'service': service,
-      },
-    );
-  }
-
-  // ✅ NEW: Navigate to booking with complete provider data
-  static void goToBookingWithCompleteData({
-    required BuildContext context,
-    required String serviceId,
-    required String providerId,
-    required Map<String, dynamic> providerData,
-    ServiceModel? service,
-  }) {
-    print('🔗 Navigating to booking with complete provider data');
-    print('   - Provider ID: $providerId');
-    print('   - Provider Name: ${providerData['name']}');
-    
-    pushNamed(
-      context,
-      booking,
-      arguments: {
-        'serviceId': serviceId,
-        'providerId': providerId,
-        'providerData': providerData,
-        if (service != null) 'service': service,
-      },
-    );
-  }
-
   // Navigation shortcuts for common flows
 
   /// Navigate to service detail
@@ -541,17 +521,36 @@ class RouteHelper {
     );
   }
 
-  /// Navigate to booking flow (legacy - use goToBookingWithProvider for 400 fix)
+  /// Navigate to booking flow with provider ID
+  static void goToBookingWithProvider({
+    required BuildContext context,
+    required String serviceId,
+    required String providerId,
+    ServiceModel? service,
+  }) {
+    print('🔗 Navigating to booking with provider ID: $providerId');
+
+    pushNamed(
+      context,
+      booking,
+      arguments: {
+        'serviceId': serviceId,
+        'providerId': providerId,
+        if (service != null) 'service': service,
+      },
+    );
+  }
+
+  /// Navigate to booking flow (legacy)
   static void goToBooking(BuildContext context, String serviceId) {
     pushNamed(context, booking, arguments: serviceId);
   }
 
-  /// Navigate to booking flow with ServiceModel (legacy)
+  /// Navigate to booking flow with ServiceModel
   static void goToBookingWithModel(BuildContext context, ServiceModel service) {
     pushNamed(context, booking, arguments: service);
   }
 
-  // ✅ FIXED: Payment method selection - ACCEPTS PROVIDERID
   /// Navigate to payment method selection
   static void goToPaymentMethod(
     BuildContext context, {
@@ -560,10 +559,10 @@ class RouteHelper {
     required double totalAmount,
     required String bookingDate,
     String? notes,
-    String? providerId, // ✅ ADDED - Required for booking creation
+    String? providerId,
   }) {
     print('💳 Navigating to payment method with provider ID: $providerId');
-    
+
     pushNamed(
       context,
       paymentMethod,
@@ -573,12 +572,11 @@ class RouteHelper {
         'totalAmount': totalAmount,
         'bookingDate': bookingDate,
         'notes': notes,
-        'providerId': providerId, // ✅ ADDED
+        'providerId': providerId,
       },
     );
   }
 
-  // ✅ FIXED: Skip payment confirmation - ACCEPTS PROVIDERID
   /// Navigate to skip payment confirmation
   static void goToSkipPayment(
     BuildContext context, {
@@ -587,10 +585,10 @@ class RouteHelper {
     required double totalAmount,
     required String bookingDate,
     String? notes,
-    String? providerId, // ✅ ADDED - Required for booking creation
+    String? providerId,
   }) {
     print('⏭ Navigating to skip payment with provider ID: $providerId');
-    
+
     pushNamed(
       context,
       skipPayment,
@@ -600,7 +598,7 @@ class RouteHelper {
         'totalAmount': totalAmount,
         'bookingDate': bookingDate,
         'notes': notes,
-        'providerId': providerId, // ✅ ADDED
+        'providerId': providerId,
       },
     );
   }
@@ -626,6 +624,24 @@ class RouteHelper {
   /// Navigate to reviews
   static void goToReviews(BuildContext context, String serviceId) {
     pushNamed(context, reviews, arguments: serviceId);
+  }
+
+  /// Navigate to write review screen
+  static void goToWriteReview(
+    BuildContext context, {
+    required String serviceId,
+    String? serviceName,
+    String? bookingId,
+  }) {
+    pushNamed(
+      context,
+      writeReview,
+      arguments: {
+        'serviceId': serviceId,
+        'serviceName': serviceName,
+        'bookingId': bookingId,
+      },
+    );
   }
 
   /// Navigate to edit profile
@@ -668,12 +684,17 @@ class RouteHelper {
     pushNamed(context, profile);
   }
 
-  // ✅ NEW: Navigate to pending payments screen
+  // ✅ ADD: Navigate to notifications screen
+  static void goToNotifications(BuildContext context) {
+    pushNamed(context, notifications);
+  }
+
+  /// Navigate to pending payments screen
   static void goToPendingPayments(BuildContext context) {
     pushNamed(context, payments);
   }
 
-  // ✅ NEW: Navigate with data preservation
+  /// Navigate with data preservation
   static void goToScreenWithData(
     BuildContext context,
     String routeName,
@@ -682,7 +703,7 @@ class RouteHelper {
     pushNamed(context, routeName, arguments: data);
   }
 
-  // ✅ NEW: Clear navigation stack and go to screen
+  /// Clear navigation stack and go to screen
   static void clearStackAndGo(
     BuildContext context,
     String routeName, {
@@ -718,7 +739,7 @@ class RouteHelper {
     Navigator.of(context, rootNavigator: true).pop();
   }
 
-  // ✅ IMPROVED: Show error dialog with better styling
+  /// Show error dialog
   static void showErrorDialog(
     BuildContext context, {
     required String title,
@@ -741,9 +762,10 @@ class RouteHelper {
         content: Text(message),
         actions: [
           TextButton(
-            onPressed: onPressed ?? () {
-              if (autoDismiss) Navigator.pop(context);
-            },
+            onPressed: onPressed ??
+                () {
+                  if (autoDismiss) Navigator.pop(context);
+                },
             child: Text(buttonText),
           ),
         ],
@@ -751,7 +773,7 @@ class RouteHelper {
     );
   }
 
-  // ✅ IMPROVED: Show success dialog
+  /// Show success dialog
   static void showSuccessDialog(
     BuildContext context, {
     required String title,
@@ -780,7 +802,7 @@ class RouteHelper {
     );
   }
 
-  // ✅ IMPROVED: Show confirmation dialog with better UI
+  /// Show confirmation dialog
   static Future<bool> showConfirmDialog(
     BuildContext context, {
     required String title,
@@ -812,7 +834,7 @@ class RouteHelper {
     return result ?? false;
   }
 
-  // ✅ NEW: Show booking confirmation dialog
+  /// Show booking confirmation dialog
   static Future<bool> showBookingConfirmationDialog(
     BuildContext context, {
     required String serviceName,
@@ -837,7 +859,7 @@ class RouteHelper {
     );
   }
 
-  // ✅ NEW: Show payment confirmation dialog
+  /// Show payment confirmation dialog
   static Future<bool> showPaymentConfirmationDialog(
     BuildContext context, {
     required String paymentMethod,
@@ -855,7 +877,7 @@ class RouteHelper {
     );
   }
 
-  // ✅ NEW: Show logout confirmation dialog
+  /// Show logout confirmation dialog
   static Future<bool> showLogoutConfirmationDialog(BuildContext context) async {
     return await showConfirmDialog(
       context,
@@ -866,7 +888,7 @@ class RouteHelper {
     );
   }
 
-  // ✅ NEW: Show session expired dialog
+  /// Show session expired dialog
   static void showSessionExpiredDialog(
     BuildContext context, {
     VoidCallback? onLoginPressed,
@@ -888,6 +910,62 @@ class RouteHelper {
           ),
         ],
       ),
+    );
+  }
+
+  // ✅ ADD: Show notification permission dialog
+  static Future<bool> showNotificationPermissionDialog(
+    BuildContext context,
+  ) async {
+    return await showConfirmDialog(
+      context,
+      title: 'Enable Notifications',
+      message: 'Allow Infinity Booking to send you notifications about '
+          'your bookings, reminders, and promotions?',
+      confirmText: 'Allow',
+      cancelText: 'Not Now',
+      confirmColor: Colors.green,
+    );
+  }
+
+  // ✅ ADD: Show notification settings dialog
+  static void showNotificationSettingsDialog(
+    BuildContext context,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Notification Settings'),
+        content: const Text(
+            'Manage your notification preferences in device settings.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // TODO: Open device notification settings
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ ADD: Show mark all notifications read dialog
+  static Future<bool> showMarkAllReadDialog(
+    BuildContext context,
+  ) async {
+    return await showConfirmDialog(
+      context,
+      title: 'Mark All as Read',
+      message: 'Are you sure you want to mark all notifications as read?',
+      confirmText: 'Mark All',
+      cancelText: 'Cancel',
+      confirmColor: Colors.blue,
     );
   }
 }

@@ -1,10 +1,13 @@
-// lib/screens/main/bookings_screen.dart - FIXED & ENHANCED VERSION
+// lib/screens/main/bookings_screen.dart - FIXED VERSION
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../services/booking_service.dart';
+import '../../services/review_service.dart'; // Add this import
 import '../../models/booking_model.dart';
 import '../../config/route_helper.dart';
 import '../../utils/constants.dart';
+import '../../providers/notification_provider.dart'; // Add this if you have it
 
 class BookingsScreen extends StatefulWidget {
   const BookingsScreen({super.key});
@@ -16,6 +19,7 @@ class BookingsScreen extends StatefulWidget {
 class _BookingsScreenState extends State<BookingsScreen>
     with SingleTickerProviderStateMixin {
   final BookingService _bookingService = BookingService();
+  final ReviewService _reviewService = ReviewService(); // Add this line
   List<BookingModel> _bookings = [];
   bool _loading = true;
   String _selectedFilter = 'all';
@@ -83,7 +87,7 @@ class _BookingsScreenState extends State<BookingsScreen>
       
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to load bookings'),
+          content: const Text('Failed to load bookings'),
           backgroundColor: Colors.red,
           action: SnackBarAction(
             label: 'Retry',
@@ -421,7 +425,7 @@ class _BookingsScreenState extends State<BookingsScreen>
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '${booking.formattedBookingDate}',
+                          booking.formattedBookingDate,
                           style: const TextStyle(fontSize: 13),
                         ),
                         const SizedBox(width: 12),
@@ -520,7 +524,8 @@ class _BookingsScreenState extends State<BookingsScreen>
       ]);
     }
 
-    if (status == 'completed' && booking.isPaid == false) {
+    // ✅ ADD REVIEW BUTTON FOR COMPLETED BOOKINGS
+    if (status == 'completed' && !booking.isPaid) {
       buttons.add(
         OutlinedButton.icon(
           onPressed: () => _addReview(booking),
@@ -764,16 +769,40 @@ class _BookingsScreenState extends State<BookingsScreen>
     }
   }
 
+  // ✅ FIXED: Add review method
   Future<void> _addReview(BookingModel booking) async {
-    // TODO: Implement review
-    print('Adding review for booking: ${booking.id}');
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Review feature coming soon!'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    try {
+      // Check if user can review this booking
+      final canReview = await _reviewService.canReviewBooking(booking.id);
+      
+      if (canReview) {
+        // Navigate to write review screen
+        Navigator.pushNamed(
+          context,
+          '/write-review',
+          arguments: {
+            'bookingId': booking.id,
+            'serviceId': booking.serviceId,
+            'serviceName': booking.serviceName,
+          },
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('You cannot review this booking'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (error) {
+      print('❌ Error checking review eligibility: $error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to check review eligibility: $error'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Color _getStatusColor(String status) {
@@ -1052,6 +1081,50 @@ class BookingDetailsBottomSheet extends StatelessWidget {
               foregroundColor: Colors.red,
             ),
             child: const Text('Cancel Booking'),
+          ),
+        ],
+      );
+    }
+
+    // ✅ ADD REVIEW BUTTON FOR COMPLETED BOOKINGS
+    if (status == 'completed' && !booking.isPaid) {
+      return Column(
+        children: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // Navigate to write review
+              Navigator.pushNamed(
+                context,
+                '/write-review',
+                arguments: {
+                  'bookingId': booking.id,
+                  'serviceId': booking.serviceId,
+                  'serviceName': booking.serviceName,
+                },
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(double.infinity, 50),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.star, size: 20),
+                SizedBox(width: 8),
+                Text('Write a Review'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton(
+            onPressed: () => Navigator.pop(context),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 50),
+            ),
+            child: const Text('Close'),
           ),
         ],
       );

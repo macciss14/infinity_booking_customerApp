@@ -1,4 +1,4 @@
-// lib/utils/constants.dart
+// lib/utils/constants.dart - COMPLETE UPDATED VERSION
 import 'package:flutter/material.dart';
 
 class AppConstants {
@@ -11,7 +11,7 @@ class AppConstants {
       'https://infinity-booking-backend1.onrender.com';
   static const String apiBaseUrl = '$baseUrl/'; // ✅ Trailing slash
 
-  // Auth Endpoints
+  // ==================== AUTH ENDPOINTS ====================
   static const String registerEndpoint =
       'infinity-booking/auth/register/customer';
   static const String loginEndpoint = 'infinity-booking/auth/login';
@@ -19,19 +19,19 @@ class AppConstants {
   static const String changePasswordEndpoint =
       'infinity-booking/users/change-password';
 
-  // User Endpoints
+  // ==================== USER ENDPOINTS ====================
   static const String profileEndpoint = 'infinity-booking/users/profile';
   static const String updateProfileEndpoint = 'infinity-booking/users/';
   static const String uploadPhotoEndpoint =
       'infinity-booking/users/profile-photo/upload';
   static const String currentUserEndpoint = 'infinity-booking/users/current';
 
-  // ✅ Provider Endpoints
+  // ==================== PROVIDER ENDPOINTS ====================
   static const String providerEndpoint = 'infinity-booking/providers/{id}';
   static const String providerByPidEndpoint =
-      'infinity-booking/users/providers/by-pid/{pid}'; // EXACT ENDPOINT
+      'infinity-booking/users/providers/by-pid/{pid}';
 
-  // Category & Subcategory Endpoints
+  // ==================== CATEGORY & SUBCATEGORY ENDPOINTS ====================
   static const String categoriesEndpoint = 'infinity-booking/categories';
   static const String categoryDetailEndpoint =
       'infinity-booking/categories/{id}';
@@ -40,7 +40,7 @@ class AppConstants {
   static const String subcategoryDetailEndpoint =
       'infinity-booking/subcategories/{id}';
 
-  // Service Endpoints
+  // ==================== SERVICE ENDPOINTS ====================
   static const String servicesEndpoint = 'infinity-booking/services';
   static const String servicesByCategoryEndpoint =
       'infinity-booking/services/category/{id}';
@@ -53,27 +53,60 @@ class AppConstants {
       'infinity-booking/services/popular';
   static const String searchServicesEndpoint =
       'infinity-booking/services/search';
-
-  // Booking Endpoints
-  static const String createBookingEndpoint = 'infinity-booking/bookings';
-  static const String userBookingsEndpoint = 'infinity-booking/bookings/user';
-  static const String bookingDetailEndpoint = 'infinity-booking/bookings/{id}';
   static const String serviceSlotsEndpoint =
       'infinity-booking/services/{serviceId}/slots';
-  static const String cancelBookingEndpoint =
-      'infinity-booking/bookings/{id}/cancel';
-  static const String updateBookingStatusEndpoint =
-      'infinity-booking/bookings/{id}/status';
-  static const String rescheduleBookingEndpoint =
-      'infinity-booking/bookings/{id}/reschedule';
-  static const String checkSlotAvailabilityEndpoint =
-      'infinity-booking/bookings/check-availability';
-  static const String bookingStatisticsEndpoint =
-      'infinity-booking/bookings/statistics';
-  static const String upcomingBookingsEndpoint =
-      'infinity-booking/bookings/upcoming';
 
-  // Payment Endpoints
+  // ==================== BOOKING ENDPOINTS ====================
+  // ✅ COMPLETE BOOKING ENDPOINTS FROM YOUR API DOC
+  static const String createBookingEndpoint = 'infinity-booking/bookings';
+  static const String getAllBookingsEndpoint = 'infinity-booking/bookings';
+  static const String bookingDetailEndpoint = 'infinity-booking/bookings/{id}';
+  static const String bookingsByCustomerEndpoint = 'infinity-booking/bookings/customer/{customerId}';
+  static const String bookingsByProviderEndpoint = 'infinity-booking/bookings/provider/{providerId}';
+  static const String bookingsByServiceEndpoint = 'infinity-booking/bookings/service/{serviceId}';
+  static const String customerBookingStatsEndpoint = 'infinity-booking/bookings/stats/customer/{customerId}';
+  
+  // Booking actions
+  static const String cancelBookingEndpoint = 'infinity-booking/bookings/{id}/cancel';
+  static const String updateBookingStatusEndpoint = 'infinity-booking/bookings/{id}/status';
+  static const String rescheduleBookingEndpoint = 'infinity-booking/bookings/{id}/reschedule';
+  static const String checkSlotAvailabilityEndpoint = 'infinity-booking/bookings/check-availability';
+  static const String completeBookingEndpoint = 'infinity-booking/bookings/{id}/complete';
+  static const String rateBookingEndpoint = 'infinity-booking/bookings/{id}/rate';
+
+  // ==================== REVIEW ENDPOINTS ====================
+  // ✅ COMPLETE REVIEW ENDPOINTS FROM YOUR API DOC
+  static const String createReviewEndpoint = 'infinity-booking/reviews';
+  static const String getAllReviewsEndpoint = 'infinity-booking/reviews';
+  static const String serviceReviewsEndpoint = 'infinity-booking/reviews/service/{serviceId}';
+  static const String providerReviewsEndpoint = 'infinity-booking/reviews/provider/{providerId}';
+  static const String userReviewsEndpoint = 'infinity-booking/reviews/my-reviews';
+  static const String reviewDetailEndpoint = 'infinity-booking/reviews/{id}';
+  static const String updateReviewEndpoint = 'infinity-booking/reviews/{id}';
+  static const String deleteReviewEndpoint = 'infinity-booking/reviews/{id}';
+  static const String reportReviewEndpoint = 'infinity-booking/reviews/{id}/report';
+  static const String serviceReviewStatsEndpoint = 'infinity-booking/reviews/service/{serviceId}/stats';
+  static const String providerReviewStatsEndpoint = 'infinity-booking/reviews/provider/{providerId}/stats';
+  static const String canReviewServiceEndpoint = 'infinity-booking/reviews/can-review/{serviceId}';
+  static const String canReviewBookingEndpoint = 'infinity-booking/reviews/can-review-booking/{bookingId}';
+  static const String reviewHelpfulEndpoint = 'infinity-booking/reviews/{id}/helpful';
+
+  // ==================== NOTIFICATION ENDPOINTS ====================
+  // ✅ COMPLETE NOTIFICATION ENDPOINTS FROM YOUR API DOC
+  static const String createNotificationEndpoint = 'infinity-booking/notifications';
+  static const String getAllNotificationsEndpoint = 'infinity-booking/notifications';
+  static const String sendNotificationEndpoint = 'infinity-booking/notifications/send';
+  static const String userNotificationsEndpoint = 'infinity-booking/notifications/my-notifications';
+  static const String unreadNotificationsCountEndpoint = 'infinity-booking/notifications/unread-count';
+  static const String notificationDetailEndpoint = 'infinity-booking/notifications/{id}';
+  static const String updateNotificationEndpoint = 'infinity-booking/notifications/{id}';
+  static const String deleteNotificationEndpoint = 'infinity-booking/notifications/{id}';
+  static const String markNotificationReadEndpoint = 'infinity-booking/notifications/{id}/read';
+  static const String markNotificationUnreadEndpoint = 'infinity-booking/notifications/{id}/unread';
+  static const String bulkUpdateNotificationsEndpoint = 'infinity-booking/notifications/bulk/update';
+  static const String markAllNotificationsReadEndpoint = 'infinity-booking/notifications/all/read';
+
+  // ==================== PAYMENT ENDPOINTS ====================
   static const String processPaymentEndpoint =
       'infinity-booking/payments/process';
   static const String verifyPaymentEndpoint =
@@ -83,17 +116,7 @@ class AppConstants {
   static const String paymentHistoryEndpoint =
       'infinity-booking/payments/history';
 
-  // Review Endpoints
-  static const String reviewsEndpoint = 'infinity-booking/reviews';
-  static const String serviceReviewsEndpoint =
-      'infinity-booking/reviews/service/{serviceId}';
-  static const String userReviewsEndpoint = 'infinity-booking/reviews/user';
-  static const String reviewHelpfulEndpoint =
-      'infinity-booking/reviews/{id}/helpful';
-  static const String reviewStatisticsEndpoint =
-      'infinity-booking/reviews/statistics/{serviceId}';
-
-  // Storage Keys
+  // ==================== STORAGE KEYS ====================
   static const String tokenKey = 'auth_token';
   static const String userDataKey = 'user_data';
   static const String firstLaunchKey = 'first_launch';
@@ -101,14 +124,14 @@ class AppConstants {
   static const String themeModeKey = 'theme_mode';
   static const String languageKey = 'app_language';
 
-  // Validation
+  // ==================== VALIDATION ====================
   static const int minPasswordLength = 8;
   static const int maxNameLength = 100;
   static const int maxEmailLength = 254;
   static const int maxPhoneLength = 20;
   static const int maxAddressLength = 500;
 
-  // Design
+  // ==================== DESIGN ====================
   static const double defaultPadding = 16.0;
   static const double defaultBorderRadius = 12.0;
   static const double smallPadding = 8.0;
@@ -117,25 +140,31 @@ class AppConstants {
   static const double appBarHeight = 56.0;
   static const double bottomNavBarHeight = 70.0;
 
-  // Timeouts
+  // ==================== TIMEOUTS ====================
   static const Duration apiTimeout = Duration(seconds: 30);
   static const Duration connectTimeout = Duration(seconds: 10);
   static const Duration receiveTimeout = Duration(seconds: 30);
 
-  // Pagination
+  // ==================== PAGINATION ====================
   static const int defaultPageSize = 20;
   static const int servicesPageSize = 12;
   static const int reviewsPageSize = 10;
+  static const int bookingsPageSize = 20;
+  static const int notificationsPageSize = 20;
 
-  // ✅ Helper to safely replace path parameters
+  // ==================== HELPER METHODS ====================
   static String replacePathParams(String endpoint,
       {String? id,
       String? serviceId,
       String? subcategoryId,
       String? categoryId,
       String? reference,
-      String? pid}) {
+      String? pid,
+      String? customerId,
+      String? providerId,
+      String? bookingId}) {
     var result = endpoint;
+    
     if (id != null) result = result.replaceAll('{id}', id);
     if (serviceId != null) result = result.replaceAll('{serviceId}', serviceId);
     if (subcategoryId != null) {
@@ -145,11 +174,14 @@ class AppConstants {
       result = result.replaceAll('{categoryId}', categoryId);
     }
     if (reference != null) result = result.replaceAll('{reference}', reference);
-    if (pid != null) result = result.replaceAll('{pid}', pid); // ✅ Handle PID
+    if (pid != null) result = result.replaceAll('{pid}', pid);
+    if (customerId != null) result = result.replaceAll('{customerId}', customerId);
+    if (providerId != null) result = result.replaceAll('{providerId}', providerId);
+    if (bookingId != null) result = result.replaceAll('{bookingId}', bookingId);
+    
     return result;
   }
 
-  // Build complete URL (not needed with proper endpoint handling)
   static String buildUrl(String endpoint) {
     if (endpoint.startsWith('/')) {
       endpoint = endpoint.substring(1);
@@ -157,7 +189,6 @@ class AppConstants {
     return '$baseUrl/$endpoint';
   }
 
-  // Get endpoint with query parameters
   static String endpointWithQuery(
       String baseEndpoint, Map<String, dynamic>? queryParams) {
     if (queryParams == null || queryParams.isEmpty) {
@@ -288,6 +319,24 @@ class AppStrings {
   static const String available = 'Available';
   static const String unavailable = 'Unavailable';
 
+  // Notifications
+  static const String notificationsTitle = 'Notifications';
+  static const String unreadNotifications = 'Unread Notifications';
+  static const String markAllAsRead = 'Mark All as Read';
+  static const String noNotifications = 'No Notifications';
+  static const String notification = 'Notification';
+
+  // Reviews
+  static const String writeAReview = 'Write a Review';
+  static const String yourReview = 'Your Review';
+  static const String ratingRequired = 'Rating is required';
+  static const String reviewSubmitted = 'Review Submitted';
+  static const String editReview = 'Edit Review';
+  static const String deleteReview = 'Delete Review';
+  static const String reportReview = 'Report Review';
+  static const String helpful = 'Helpful';
+  static const String notHelpful = 'Not Helpful';
+
   // Validation Messages
   static const String emailRequired = 'Email is required';
   static const String invalidEmail = 'Please enter a valid email';
@@ -312,6 +361,10 @@ class AppStrings {
       'Are you sure you want to delete this?';
   static const String unsavedChanges =
       'You have unsaved changes. Are you sure you want to leave?';
+  static const String deleteReviewConfirmation =
+      'Are you sure you want to delete this review?';
+  static const String reportReviewConfirmation =
+      'Are you sure you want to report this review?';
 
   // Error Messages
   static const String networkError =
@@ -332,15 +385,17 @@ class AppStrings {
   static const String bookingSuccess = 'Booking created successfully!';
   static const String paymentSuccess = 'Payment successful!';
   static const String reviewSuccess = 'Review submitted successfully!';
+  static const String notificationMarkedRead = 'Notification marked as read!';
+  static const String allNotificationsRead = 'All notifications marked as read!';
 
   // Placeholders
   static const String searchPlaceholder = 'Search services...';
   static const String notesPlaceholder =
       'Add any special instructions or notes...';
   static const String reviewPlaceholder = 'Write your review here...';
+  static const String searchNotificationsPlaceholder = 'Search notifications...';
 }
 
-// ✨ Color Constants (based on your preferences)
 class AppColors {
   // Primary Brand Colors
   static const Color primary = Color(0xFF4169E1); // Royal Blue
@@ -381,6 +436,15 @@ class AppColors {
   static const Color info = Color(0xFF17A2B8);
   static const Color infoLight = Color(0xFFD1ECF1);
 
+  // Notification Colors
+  static const Color notificationUnread = Color(0xFFE3F2FD);
+  static const Color notificationRead = Colors.white;
+  static const Color notificationImportant = Color(0xFFFFF3CD);
+
+  // Review Colors
+  static const Color starFilled = Color(0xFFFFC107);
+  static const Color starEmpty = Color(0xFFE0E0E0);
+
   // Border Colors
   static const Color borderColor = Color(0xFFCED4DA);
   static const Color borderLight = Color(0xFFE9ECEF);
@@ -392,226 +456,6 @@ class AppColors {
   static const Color shadowDark = Color(0x4D000000);
 }
 
-// ✨ Reusable App Theme
-ThemeData appTheme() {
-  return ThemeData(
-    useMaterial3: true,
-    scaffoldBackgroundColor: AppColors.scaffoldBackground,
-    appBarTheme: const AppBarTheme(
-      backgroundColor: AppColors.primary,
-      foregroundColor: Colors.white,
-      titleTextStyle: TextStyle(
-        fontSize: 20,
-        fontWeight: FontWeight.bold,
-        color: Colors.white,
-      ),
-      elevation: 1,
-      shadowColor: AppColors.shadowMedium,
-    ),
-    cardTheme: CardTheme(
-      color: AppColors.cardBackground,
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppConstants.defaultBorderRadius),
-      ),
-      shadowColor: AppColors.shadowLight,
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: AppColors.searchBackground,
-      contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(25),
-        borderSide: const BorderSide(color: AppColors.borderColor),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(25),
-        borderSide: const BorderSide(color: AppColors.borderColor),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(25),
-        borderSide: const BorderSide(color: AppColors.primaryLight, width: 2),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(25),
-        borderSide: const BorderSide(color: AppColors.error),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(25),
-        borderSide: const BorderSide(color: AppColors.error, width: 2),
-      ),
-      labelStyle: const TextStyle(color: AppColors.textSecondary),
-      hintStyle: const TextStyle(color: AppColors.textDisabled),
-      errorStyle: const TextStyle(color: AppColors.error),
-    ),
-    chipTheme: ChipThemeData(
-      backgroundColor: AppColors.chipBackground,
-      disabledColor: Colors.grey.shade100,
-      selectedColor: AppColors.primaryLight,
-      labelStyle: const TextStyle(color: AppColors.textPrimary),
-      secondaryLabelStyle: const TextStyle(color: Colors.white),
-      secondarySelectedColor: AppColors.primaryLight,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: AppColors.borderColor),
-      ),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.primaryLight,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(25),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-        textStyle: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-        ),
-        elevation: 2,
-        shadowColor: AppColors.shadowMedium,
-      ),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.primary,
-        side: const BorderSide(color: AppColors.primary),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(25),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-        textStyle: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    ),
-    textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(
-        foregroundColor: AppColors.primary,
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-        textStyle: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    ),
-    textTheme: const TextTheme(
-      displayLarge: TextStyle(
-        fontSize: 32,
-        fontWeight: FontWeight.bold,
-        color: AppColors.textPrimary,
-      ),
-      displayMedium: TextStyle(
-        fontSize: 28,
-        fontWeight: FontWeight.bold,
-        color: AppColors.textPrimary,
-      ),
-      displaySmall: TextStyle(
-        fontSize: 24,
-        fontWeight: FontWeight.bold,
-        color: AppColors.textPrimary,
-      ),
-      headlineMedium: TextStyle(
-        fontSize: 20,
-        fontWeight: FontWeight.bold,
-        color: AppColors.textPrimary,
-      ),
-      headlineSmall: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: AppColors.textPrimary,
-      ),
-      titleLarge: TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
-      ),
-      titleMedium: TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
-        color: AppColors.textPrimary,
-      ),
-      titleSmall: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-        color: AppColors.textSecondary,
-      ),
-      bodyLarge: TextStyle(
-        fontSize: 16,
-        color: AppColors.textPrimary,
-        height: 1.5,
-      ),
-      bodyMedium: TextStyle(
-        fontSize: 14,
-        color: AppColors.textPrimary,
-        height: 1.5,
-      ),
-      bodySmall: TextStyle(
-        fontSize: 12,
-        color: AppColors.textSecondary,
-        height: 1.5,
-      ),
-      labelLarge: TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        color: AppColors.textOnPrimary,
-      ),
-      labelMedium: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-        color: AppColors.textSecondary,
-      ),
-      labelSmall: TextStyle(
-        fontSize: 10,
-        fontWeight: FontWeight.w400,
-        color: AppColors.textDisabled,
-      ),
-    ),
-    colorScheme: const ColorScheme.light(
-      primary: AppColors.primary,
-      secondary: AppColors.secondary,
-      surface: AppColors.white,
-      error: AppColors.error,
-      onPrimary: AppColors.white,
-      onSecondary: AppColors.white,
-      onSurface: AppColors.textPrimary,
-      onError: AppColors.white,
-    ),
-    dividerTheme: const DividerThemeData(
-      color: AppColors.borderLight,
-      thickness: 1,
-      space: 1,
-    ),
-    dialogTheme: DialogTheme(
-      backgroundColor: AppColors.dialogBackground,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppConstants.defaultBorderRadius),
-      ),
-      titleTextStyle: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: AppColors.textPrimary,
-      ),
-      contentTextStyle: const TextStyle(
-        fontSize: 14,
-        color: AppColors.textSecondary,
-      ),
-    ),
-    snackBarTheme: SnackBarThemeData(
-      backgroundColor: AppColors.textPrimary,
-      contentTextStyle: const TextStyle(color: Colors.white),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppConstants.defaultBorderRadius),
-      ),
-      behavior: SnackBarBehavior.floating,
-    ),
-  );
-}
-
-// ✨ Custom Text Styles
 class AppTextStyles {
   static const TextStyle appBarTitle = TextStyle(
     fontSize: 20,
@@ -669,9 +513,42 @@ class AppTextStyles {
     fontSize: 12,
     fontWeight: FontWeight.bold,
   );
+
+  static const TextStyle notificationTitle = TextStyle(
+    fontSize: 15,
+    fontWeight: FontWeight.w600,
+    color: AppColors.textPrimary,
+  );
+
+  static const TextStyle notificationBody = TextStyle(
+    fontSize: 13,
+    color: AppColors.textSecondary,
+    height: 1.4,
+  );
+
+  static const TextStyle notificationTime = TextStyle(
+    fontSize: 11,
+    color: AppColors.textDisabled,
+  );
+
+  static const TextStyle reviewText = TextStyle(
+    fontSize: 14,
+    color: AppColors.textPrimary,
+    height: 1.5,
+  );
+
+  static const TextStyle reviewAuthor = TextStyle(
+    fontSize: 13,
+    fontWeight: FontWeight.w600,
+    color: AppColors.textPrimary,
+  );
+
+  static const TextStyle reviewDate = TextStyle(
+    fontSize: 11,
+    color: AppColors.textDisabled,
+  );
 }
 
-// ✨ Spacing Constants
 class AppSpacing {
   static const double xs = 4.0;
   static const double sm = 8.0;
@@ -694,11 +571,161 @@ class AppSpacing {
   );
 }
 
-// ✨ Animation Durations
 class AppDurations {
   static const Duration fast = Duration(milliseconds: 150);
   static const Duration normal = Duration(milliseconds: 300);
   static const Duration slow = Duration(milliseconds: 500);
   static const Duration pageTransition = Duration(milliseconds: 250);
   static const Duration toastDuration = Duration(seconds: 3);
+  static const Duration notificationRefresh = Duration(minutes: 5);
+}
+
+// Helper for API responses
+class ApiResponse {
+  final bool success;
+  final dynamic data;
+  final String? message;
+  final int? statusCode;
+
+  ApiResponse({
+    required this.success,
+    this.data,
+    this.message,
+    this.statusCode,
+  });
+
+  factory ApiResponse.fromJson(Map<String, dynamic> json) {
+    return ApiResponse(
+      success: json['success'] ?? false,
+      data: json['data'],
+      message: json['message'],
+      statusCode: json['statusCode'],
+    );
+  }
+}
+
+// Booking status helper
+class BookingStatus {
+  static const String pending = 'pending';
+  static const String confirmed = 'confirmed';
+  static const String inProgress = 'in_progress';
+  static const String completed = 'completed';
+  static const String cancelled = 'cancelled';
+  static const String pendingPayment = 'pending_payment';
+
+  static String getDisplayName(String status) {
+    switch (status) {
+      case pending:
+        return 'Pending';
+      case confirmed:
+        return 'Confirmed';
+      case inProgress:
+        return 'In Progress';
+      case completed:
+        return 'Completed';
+      case cancelled:
+        return 'Cancelled';
+      case pendingPayment:
+        return 'Pending Payment';
+      default:
+        return 'Unknown';
+    }
+  }
+
+  static Color getColor(String status) {
+    switch (status) {
+      case pending:
+        return Colors.orange;
+      case confirmed:
+        return Colors.blue;
+      case inProgress:
+        return Colors.purple;
+      case completed:
+        return Colors.green;
+      case cancelled:
+        return Colors.red;
+      case pendingPayment:
+        return Colors.orangeAccent;
+      default:
+        return Colors.grey;
+    }
+  }
+}
+
+// Notification types
+class NotificationType {
+  static const String bookingCreated = 'booking_created';
+  static const String bookingConfirmed = 'booking_confirmed';
+  static const String bookingCancelled = 'booking_cancelled';
+  static const String bookingRescheduled = 'booking_rescheduled';
+  static const String paymentReceived = 'payment_received';
+  static const String reviewReceived = 'review_received';
+  static const String system = 'system';
+  static const String promotion = 'promotion';
+
+  static String getDisplayName(String type) {
+    switch (type) {
+      case bookingCreated:
+        return 'New Booking';
+      case bookingConfirmed:
+        return 'Booking Confirmed';
+      case bookingCancelled:
+        return 'Booking Cancelled';
+      case bookingRescheduled:
+        return 'Booking Rescheduled';
+      case paymentReceived:
+        return 'Payment Received';
+      case reviewReceived:
+        return 'New Review';
+      case system:
+        return 'System Notification';
+      case promotion:
+        return 'Promotion';
+      default:
+        return 'Notification';
+    }
+  }
+}
+
+// Payment methods
+class PaymentMethods {
+  static const String cash = 'cash';
+  static const String telebirr = 'telebirr';
+  static const String chapa = 'chapa';
+  static const String bankTransfer = 'bank_transfer';
+  static const String card = 'card';
+
+  static String getDisplayName(String method) {
+    switch (method) {
+      case cash:
+        return 'Cash';
+      case telebirr:
+        return 'Telebirr';
+      case chapa:
+        return 'Chapa';
+      case bankTransfer:
+        return 'Bank Transfer';
+      case card:
+        return 'Card';
+      default:
+        return method;
+    }
+  }
+
+  static IconData getIcon(String method) {
+    switch (method) {
+      case cash:
+        return Icons.money;
+      case telebirr:
+        return Icons.phone_android;
+      case chapa:
+        return Icons.credit_card;
+      case bankTransfer:
+        return Icons.account_balance;
+      case card:
+        return Icons.credit_card;
+      default:
+        return Icons.payment;
+    }
+  }
 }

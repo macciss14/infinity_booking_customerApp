@@ -1,4 +1,4 @@
-// lib/services/booking_service.dart - COMPLETE REWRITTEN VERSION
+// lib/services/booking_service.dart - COMPLETE FIXED VERSION
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,10 +11,211 @@ class BookingService {
   final SecureStorage _secureStorage = SecureStorage();
   final http.Client _httpClient = http.Client();
 
-  // ✅ Create a new booking with smart provider ID handling
+  // ==================== GET USER BOOKINGS - FIXED ====================
+  Future<List<BookingModel>> getUserBookings({
+    String? status,
+    int page = 1,
+    int limit = 20,
+  }) async {
+    try {
+      print('🚀 Fetching user bookings...');
+      
+      // Step 1: Get authentication token
+      final token = await _secureStorage.getToken();
+      if (token == null) {
+        throw Exception('Not authenticated. Please login again.');
+      }
+      print('✅ Token obtained successfully');
+
+      // Step 2: Get current customer ID
+      final customerId = await _getCurrentCustomerIdInCorrectFormat();
+      if (customerId == null || customerId.isEmpty) {
+        throw Exception('Could not determine customer ID. Please login again.');
+      }
+      print('📝 Customer ID: $customerId');
+
+      // Step 3: Build the correct endpoint URL
+      // According to your API: GET /infinity-booking/bookings/customer/{customerId}
+      const String baseEndpoint = 'infinity-booking/bookings/customer/{customerId}';
+      final endpoint = baseEndpoint.replaceAll('{customerId}', customerId);
+      
+      // Step 4: Build query parameters
+      final Map<String, String> queryParams = {
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+
+      // Add status filter if provided and not 'all'
+      if (status != null && status.isNotEmpty && status.toLowerCase() != 'all') {
+        queryParams['status'] = status.toLowerCase();
+      }
+
+      final queryString = Uri(queryParameters: queryParams).query;
+      final String url = queryString.isNotEmpty
+          ? '${AppConstants.buildUrl(endpoint)}?$queryString'
+          : AppConstants.buildUrl(endpoint);
+
+      print('🔗 Request URL: $url');
+      print('📊 Query parameters: $queryParams');
+
+      // Step 5: Make the API request
+      final response = await _httpClient.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 30));
+
+      print('📡 Response status: ${response.statusCode}');
+
+      // Step 6: Handle response
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('✅ Successfully fetched bookings');
+        
+        // Handle different response structures
+        List<dynamic> bookingsData = [];
+        
+        if (data is Map) {
+          if (data['bookings'] != null && data['bookings'] is List) {
+            bookingsData = data['bookings'];
+            print('📋 Found ${bookingsData.length} bookings in "bookings" field');
+          } else if (data['data'] != null && data['data'] is List) {
+            bookingsData = data['data'];
+            print('📋 Found ${bookingsData.length} bookings in "data" field');
+          } else if (data['items'] != null && data['items'] is List) {
+            bookingsData = data['items'];
+            print('📋 Found ${bookingsData.length} bookings in "items" field');
+          } else {
+            // Try to find any array in the response
+            final possibleArrays = data.entries
+                .where((entry) => entry.value is List)
+                .toList();
+            
+            if (possibleArrays.isNotEmpty) {
+              bookingsData = possibleArrays.first.value as List<dynamic>;
+              print('📋 Found ${bookingsData.length} bookings in "${possibleArrays.first.key}" field');
+            } else {
+              print('⚠️ No array found in response, returning empty list');
+              return [];
+            }
+          }
+        } else if (data is List) {
+          bookingsData = data;
+          print('📋 Found ${bookingsData.length} bookings (direct array)');
+        } else {
+          print('⚠️ Unexpected response format: ${data.runtimeType}');
+          return [];
+        }
+
+        // Parse bookings
+        final List<BookingModel> bookings = [];
+        for (var bookingData in bookingsData) {
+          try {
+            final booking = BookingModel.fromJson(bookingData);
+            bookings.add(booking);
+          } catch (e) {
+            print('⚠️ Error parsing booking: $e');
+            print('📋 Raw booking data: $bookingData');
+          }
+        }
+
+        print('🎉 Successfully parsed ${bookings.length} bookings');
+        return bookings;
+      } else if (response.statusCode == 404) {
+        print('❌ Endpoint not found (404). Trying alternative approach...');
+        return await _getUserBookingsAlternative(token, status, page, limit);
+      } else {
+        String errorMessage = 'Failed to fetch bookings (${response.statusCode})';
+        try {
+          final errorData = jsonDecode(response.body);
+          errorMessage = errorData['message'] ?? errorData['error'] ?? errorMessage;
+        } catch (_) {}
+        throw Exception(errorMessage);
+      }
+    } catch (error) {
+      print('❌ Error in getUserBookings: $error');
+      rethrow;
+    }
+  }
+
+  // Alternative method if customer endpoint doesn't work
+  Future<List<BookingModel>> _getUserBookingsAlternative(
+    String token,
+    String? status,
+    int page,
+    int limit
+  ) async {
+    try {
+      print('🔄 Trying alternative: GET /infinity-booking/bookings with filters');
+      
+      const String endpoint = 'infinity-booking/bookings';
+      final Map<String, String> queryParams = {
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+
+      final queryString = Uri(queryParameters: queryParams).query;
+      final String url = '${AppConstants.buildUrl(endpoint)}?$queryString';
+
+      final response = await _httpClient.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        List<dynamic> allBookings = [];
+        
+        if (data is Map) {
+          allBookings = data['bookings'] ?? data['data'] ?? data['items'] ?? [];
+        } else if (data is List) {
+          allBookings = data;
+        }
+        
+        // Filter by current user client-side
+        final customerId = await _getCurrentCustomerIdInCorrectFormat();
+        final filteredBookings = allBookings.where((booking) {
+          if (booking is Map) {
+            final bookingCustomerId = booking['customerId']?.toString() ?? 
+                                    booking['customer']?['_id']?.toString() ?? 
+                                    booking['customer']?['id']?.toString();
+            return bookingCustomerId == customerId;
+          }
+          return false;
+        }).toList();
+
+        // Apply status filter if needed
+        final finalBookings = status != null && status.isNotEmpty && status != 'all'
+            ? filteredBookings.where((booking) {
+                if (booking is Map) {
+                  final bookingStatus = booking['status']?.toString().toLowerCase() ?? '';
+                  return bookingStatus == status.toLowerCase();
+                }
+                return false;
+              }).toList()
+            : filteredBookings;
+
+        // Parse to BookingModel
+        return finalBookings.map((json) => BookingModel.fromJson(json)).toList();
+      }
+      throw Exception('Alternative endpoint also failed');
+    } catch (error) {
+      print('❌ Alternative method failed: $error');
+      rethrow;
+    }
+  }
+
+  // ==================== CREATE BOOKING ====================
   Future<BookingModel> createBooking({
     required String serviceId,
-    required String providerId, // This might be MongoDB ID, PID, or user ID
+    required String providerId,
     required String bookingDate, // Format: DD/MM/YYYY
     required String startTime,
     required String endTime,
@@ -25,37 +226,27 @@ class BookingService {
     bool skipPayment = false,
   }) async {
     try {
-      print('🚀 Starting booking creation process...');
-      print('   Input providerId: $providerId');
-      print('   Service ID: $serviceId');
-      print('   Date: $bookingDate');
-
-      // 🔥 STEP 1: Validate and extract real provider PID
-      final String realProviderPid = await _resolveProviderPid(providerId, serviceId);
+      print('🚀 Creating new booking...');
       
-      if (realProviderPid.isEmpty) {
-        throw Exception('Could not determine valid provider ID. Please try again or contact support.');
+      // Get authentication token
+      final token = await _secureStorage.getToken();
+      if (token == null) {
+        throw Exception('Session expired. Please login again.');
       }
 
-      print('✅ Resolved provider PID: $realProviderPid');
-
-      // 🔥 STEP 2: Validate date format
-      _validateDateFormat(bookingDate);
-
-      // 🔥 STEP 3: Get customer ID in correct format
+      // Get customer ID
       final customerId = await _getCurrentCustomerIdInCorrectFormat();
       if (customerId == null || customerId.isEmpty) {
         throw Exception('Please login to create a booking.');
       }
-
       print('✅ Customer ID: $customerId');
 
-      // 🔥 STEP 4: Prepare the booking request
+      // Prepare the booking request
       final Map<String, dynamic> bookingRequest = {
         'serviceId': serviceId,
-        'providerId': realProviderPid, // ✅ Use the resolved PID
+        'providerId': providerId,
         'customerId': customerId,
-        'bookingDate': bookingDate, // ✅ Keep as DD/MM/YYYY
+        'bookingDate': bookingDate,
         'startTime': startTime,
         'endTime': endTime,
         'totalAmount': totalAmount,
@@ -69,21 +260,12 @@ class BookingService {
       // Remove null values
       bookingRequest.removeWhere((key, value) => value == null);
 
-      print('📦 Final booking request:');
-      bookingRequest.forEach((key, value) {
-        print('   $key: $value');
-      });
+      print('📦 Booking request: $bookingRequest');
 
-      // 🔥 STEP 5: Get authentication token
-      final token = await _secureStorage.getToken();
-      if (token == null) {
-        throw Exception('Session expired. Please login again.');
-      }
-
+      // Make API request
       final url = AppConstants.buildUrl(AppConstants.createBookingEndpoint);
-      print('🔗 Booking endpoint: $url');
+      print('🔗 Endpoint: $url');
 
-      // 🔥 STEP 6: Make the API request
       final response = await _httpClient.post(
         Uri.parse(url),
         headers: {
@@ -99,450 +281,33 @@ class BookingService {
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);
         print('🎉 Booking created successfully!');
-        print('📋 Booking ID: ${data['_id'] ?? data['id']}');
         return BookingModel.fromJson(data);
+      } else {
+        String errorMessage = 'Failed to create booking (${response.statusCode})';
+        try {
+          final errorData = jsonDecode(response.body);
+          errorMessage = errorData['message'] ?? errorData['error'] ?? errorMessage;
+        } catch (_) {}
+        throw Exception(errorMessage);
       }
-
-      // 🔥 STEP 7: Handle error responses
-      return await _handleBookingError(
-        response: response,
-        originalRequest: bookingRequest,
-        serviceId: serviceId,
-      );
     } catch (error) {
       print('❌ Booking creation failed: $error');
       rethrow;
-    } finally {
-      _httpClient.close();
     }
   }
 
-  // 🔥 CRITICAL: Resolve provider PID from various input formats
-  Future<String> _resolveProviderPid(String inputProviderId, String serviceId) async {
-    print('🔍 Resolving provider PID from input: $inputProviderId');
-    
-    // Case 1: Already a valid PROV- PID
-    if (inputProviderId.startsWith('PROV-')) {
-      print('✅ Input is already a PROV- PID');
-      return inputProviderId;
-    }
-
-    // Case 2: Try to fetch from service data
-    print('🔄 Attempting to fetch provider PID from service data...');
-    final serviceProviderPid = await _getProviderPidFromService(serviceId);
-    if (serviceProviderPid.isNotEmpty) {
-      print('✅ Found provider PID from service: $serviceProviderPid');
-      return serviceProviderPid;
-    }
-
-    // Case 3: Input might be a user ID, try to get provider profile
-    print('🔄 Attempting to fetch provider PID from user data...');
-    final userProviderPid = await _getProviderPidFromUser(inputProviderId);
-    if (userProviderPid.isNotEmpty) {
-      print('✅ Found provider PID from user: $userProviderPid');
-      return userProviderPid;
-    }
-
-    // Case 4: Last resort - try to use the input as-is (will likely fail)
-    print('⚠️ Could not resolve PROV- PID, using input as-is');
-    return inputProviderId;
-  }
-
-  // 🔥 Fetch provider PID from service data
-  Future<String> _getProviderPidFromService(String serviceId) async {
-    try {
-      print('🔍 Fetching service details for: $serviceId');
-      
-      final token = await _secureStorage.getToken();
-      if (token == null) return '';
-
-      final serviceUrl = '${AppConstants.baseUrl}/infinity-booking/services/$serviceId';
-      print('🔗 Service URL: $serviceUrl');
-
-      final response = await _httpClient.get(
-        Uri.parse(serviceUrl),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final serviceData = jsonDecode(response.body);
-        print('📊 Service data keys: ${serviceData.keys}');
-
-        // Look for provider PID in various possible locations
-        final possiblePidPaths = [
-          'providerPid',
-          'provider.pid',
-          'pid',
-          'providerId',
-          'provider.id',
-          'user.pid',
-          'user.providerPid',
-        ];
-
-        for (final path in possiblePidPaths) {
-          final pid = _extractValueByPath(serviceData, path);
-          if (pid != null && pid.toString().isNotEmpty) {
-            final pidStr = pid.toString();
-            print('✅ Found provider reference at $path: $pidStr');
-            
-            if (pidStr.startsWith('PROV-')) {
-              return pidStr;
-            }
-          }
-        }
-
-        // If we found a provider object, print its structure
-        if (serviceData['provider'] != null && serviceData['provider'] is Map) {
-          final provider = serviceData['provider'] as Map<String, dynamic>;
-          print('📋 Provider object structure:');
-          provider.forEach((key, value) => print('   $key: $value'));
-        }
-
-        print('❌ No valid PROV- PID found in service data');
-      } else {
-        print('❌ Failed to fetch service data: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('❌ Error fetching service data: $e');
-    }
-
-    return '';
-  }
-
-  // 🔥 Extract value from nested object using dot notation
-  dynamic _extractValueByPath(Map<String, dynamic> data, String path) {
-    try {
-      var current = data;
-      final parts = path.split('.');
-      
-      for (int i = 0; i < parts.length - 1; i++) {
-        if (current[parts[i]] is Map) {
-          current = current[parts[i]] as Map<String, dynamic>;
-        } else {
-          return null;
-        }
-      }
-      
-      return current[parts.last];
-    } catch (e) {
-      return null;
-    }
-  }
-
-  // 🔥 Fetch provider PID from user data
-  Future<String> _getProviderPidFromUser(String userId) async {
-    try {
-      final token = await _secureStorage.getToken();
-      if (token == null) return '';
-
-      // Try provider endpoint
-      final providerUrl = '${AppConstants.baseUrl}/infinity-booking/providers/$userId';
-      print('🔗 Trying provider endpoint: $providerUrl');
-      
-      final providerResponse = await _httpClient.get(
-        Uri.parse(providerUrl),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 5));
-
-      if (providerResponse.statusCode == 200) {
-        final providerData = jsonDecode(providerResponse.body);
-        final pid = providerData['pid']?.toString();
-        if (pid != null && pid.startsWith('PROV-')) {
-          print('✅ Found PID from provider endpoint: $pid');
-          return pid;
-        }
-      }
-
-      // Try user endpoint
-      final userUrl = '${AppConstants.baseUrl}/infinity-booking/users/$userId';
-      print('🔗 Trying user endpoint: $userUrl');
-      
-      final userResponse = await _httpClient.get(
-        Uri.parse(userUrl),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 5));
-
-      if (userResponse.statusCode == 200) {
-        final userData = jsonDecode(userResponse.body);
-        final pid = userData['pid']?.toString();
-        if (pid != null && pid.startsWith('PROV-')) {
-          print('✅ Found PID from user endpoint: $pid');
-          return pid;
-        }
-      }
-
-    } catch (e) {
-      print('❌ Error fetching user/provider data: $e');
-    }
-
-    return '';
-  }
-
-  // 🔥 Handle booking errors with intelligent retry logic
-  Future<BookingModel> _handleBookingError({
-    required http.Response response,
-    required Map<String, dynamic> originalRequest,
-    required String serviceId,
-  }) async {
-    String errorMsg = 'Failed to create booking (${response.statusCode})';
-    Map<String, dynamic>? errorData;
-
-    try {
-      errorData = jsonDecode(response.body);
-      errorMsg = errorData?['message'] ?? errorData?['error'] ?? errorMsg;
-      print('❌ Server error: $errorMsg');
-      print('❌ Error details: $errorData');
-    } catch (_) {
-      print('❌ Raw error response: ${response.body}');
-    }
-
-    // 🔥 Handle specific error cases
-    if (response.statusCode == 400) {
-      if (errorMsg.toLowerCase().contains('provider')) {
-        print('🔄 Provider error detected, attempting to find correct provider ID...');
-        
-        // Try to get provider ID directly from the service
-        final serviceProviderId = await _getProviderIdFromServiceDirect(serviceId);
-        if (serviceProviderId != null && serviceProviderId.startsWith('PROV-')) {
-          print('✅ Found alternative provider ID: $serviceProviderId');
-          
-          // Update and retry
-          originalRequest['providerId'] = serviceProviderId;
-          
-          final token = await _secureStorage.getToken();
-          if (token != null) {
-            print('🔄 Retrying with corrected provider ID...');
-            
-            final retryResponse = await _httpClient.post(
-              Uri.parse(AppConstants.buildUrl(AppConstants.createBookingEndpoint)),
-              headers: {
-                'Authorization': 'Bearer $token',
-                'Content-Type': 'application/json',
-              },
-              body: jsonEncode(originalRequest),
-            ).timeout(const Duration(seconds: 20));
-
-            if (retryResponse.statusCode == 201 || retryResponse.statusCode == 200) {
-              final retryData = jsonDecode(retryResponse.body);
-              print('✅ Booking created successfully on retry!');
-              return BookingModel.fromJson(retryData);
-            }
-          }
-        }
-        
-        errorMsg = 'Unable to verify service provider. Please try again or contact support.';
-      } else if (errorMsg.toLowerCase().contains('date')) {
-        errorMsg = 'Invalid date format. Please check the selected date.';
-      } else {
-        errorMsg = 'Invalid booking data. Please check all information.';
-      }
-    } else if (response.statusCode == 401) {
-      errorMsg = 'Session expired. Please login again.';
-    } else if (response.statusCode == 403) {
-      errorMsg = 'Access denied. You do not have permission to create this booking.';
-    } else if (response.statusCode == 404) {
-      errorMsg = 'Service not found. The service may no longer be available.';
-    } else if (response.statusCode == 409) {
-      errorMsg = 'This time slot is already booked. Please choose another time.';
-    } else if (response.statusCode == 500) {
-      errorMsg = 'Server error. Please try again later.';
-    }
-
-    throw Exception(errorMsg);
-  }
-
-  // 🔥 Direct method to get provider ID from service (simpler approach)
-  Future<String?> _getProviderIdFromServiceDirect(String serviceId) async {
-    try {
-      final token = await _secureStorage.getToken();
-      if (token == null) return null;
-
-      final response = await _httpClient.get(
-        Uri.parse('${AppConstants.baseUrl}/infinity-booking/services/$serviceId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final serviceData = jsonDecode(response.body);
-        
-        // Simple direct extraction - look for common field names
-        if (serviceData['providerId'] != null) {
-          return serviceData['providerId'].toString();
-        }
-        if (serviceData['providerPid'] != null) {
-          return serviceData['providerPid'].toString();
-        }
-        if (serviceData['provider'] != null && serviceData['provider'] is Map) {
-          final provider = serviceData['provider'] as Map<String, dynamic>;
-          if (provider['pid'] != null) {
-            return provider['pid'].toString();
-          }
-          if (provider['id'] != null) {
-            return provider['id'].toString();
-          }
-        }
-      }
-    } catch (e) {
-      print('❌ Error getting provider ID directly: $e');
-    }
-    
-    return null;
-  }
-
-  // 🔥 Validate date format is DD/MM/YYYY
-  void _validateDateFormat(String date) {
-    try {
-      final parts = date.split('/');
-      if (parts.length != 3) {
-        throw FormatException('Invalid date format. Expected DD/MM/YYYY, got: $date');
-      }
-      
-      final day = int.tryParse(parts[0]);
-      final month = int.tryParse(parts[1]);
-      final year = int.tryParse(parts[2]);
-      
-      if (day == null || month == null || year == null) {
-        throw FormatException('Invalid date numbers. Expected DD/MM/YYYY, got: $date');
-      }
-      
-      print('✅ Date format validated: $date (DD/MM/YYYY)');
-    } catch (e) {
-      print('❌ Date validation error: $e');
-      rethrow;
-    }
-  }
-
-  // 🔥 Get customer ID in correct format
-  Future<String?> _getCurrentCustomerIdInCorrectFormat() async {
-    try {
-      final user = await _secureStorage.getUserData();
-      
-      // Priority 1: cid field (CUST- format)
-      if (user?.cid != null && user!.cid!.startsWith('CUST-')) {
-        return user.cid;
-      }
-      
-      // Priority 2: Saved user ID
-      final savedUserId = await _secureStorage.getUserId();
-      if (savedUserId != null && savedUserId.isNotEmpty && savedUserId.startsWith('CUST-')) {
-        return savedUserId;
-      }
-      
-      // Priority 3: Extract from token
-      final token = await _secureStorage.getToken();
-      if (token != null) {
-        final custId = _extractCustIdFromToken(token);
-        if (custId != null && custId.isNotEmpty && custId.startsWith('CUST-')) {
-          await _secureStorage.saveUserId(custId);
-          return custId;
-        }
-      }
-      
-      // Priority 4: Use user ID (might be MongoDB format)
-      if (user != null && user.id.isNotEmpty) {
-        return user.id;
-      }
-      
-      return null;
-    } catch (e) {
-      print('❌ Error getting customer ID: $e');
-      return null;
-    }
-  }
-
-  // 🔥 Extract CUST- ID from JWT token
-  String? _extractCustIdFromToken(String token) {
-    try {
-      final parts = token.split('.');
-      if (parts.length != 3) return null;
-      
-      final payload = parts[1];
-      final String normalized = base64Url.normalize(payload);
-      final String decoded = utf8.decode(base64Url.decode(normalized));
-      final Map<String, dynamic> payloadMap = jsonDecode(decoded);
-      
-      // Look for CUST- ID in various fields
-      final possibleFields = ['cid', 'customerId', 'customer_id', 'custId', 'user_id'];
-      
-      for (final field in possibleFields) {
-        final value = payloadMap[field]?.toString();
-        if (value != null && value.startsWith('CUST-')) {
-          return value;
-        }
-      }
-      
-      return null;
-    } catch (e) {
-      print('❌ Error decoding token: $e');
-      return null;
-    }
-  }
-
-  // ✅ Get user bookings
-  Future<List<BookingModel>> getUserBookings({
-    String? status,
-    int page = 1,
-    int limit = 20,
-  }) async {
-    try {
-      final token = await _secureStorage.getToken();
-      if (token == null) throw Exception('Not authenticated');
-
-      final params = {
-        'page': page.toString(),
-        'limit': limit.toString(),
-        if (status != null) 'status': status,
-      };
-
-      String url = AppConstants.userBookingsEndpoint;
-      if (params.isNotEmpty) {
-        url = '$url?${Uri(queryParameters: params).query}';
-      }
-
-      final fullUrl = AppConstants.buildUrl(url);
-      final response = await _httpClient.get(
-        Uri.parse(fullUrl),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final List<dynamic> bookings = data['bookings'] ?? data['data'] ?? data;
-        return bookings.map((json) => BookingModel.fromJson(json)).toList();
-      }
-      throw Exception('Failed to fetch bookings (${response.statusCode})');
-    } catch (error) {
-      print('❌ Error fetching bookings: $error');
-      rethrow;
-    }
-  }
-
-  // ✅ Get booking by ID
+  // ==================== GET BOOKING BY ID ====================
   Future<BookingModel> getBookingById(String bookingId) async {
     try {
       final token = await _secureStorage.getToken();
       if (token == null) throw Exception('Not authenticated');
 
-      final endpoint = AppConstants.replacePathParams(
-        AppConstants.bookingDetailEndpoint,
-        id: bookingId,
-      );
+      const String baseEndpoint = 'infinity-booking/bookings/{id}';
+      final endpoint = baseEndpoint.replaceAll('{id}', bookingId);
       final url = AppConstants.buildUrl(endpoint);
+
+      print('🔍 Fetching booking by ID: $bookingId');
+      print('🔗 URL: $url');
 
       final response = await _httpClient.get(
         Uri.parse(url),
@@ -552,28 +317,38 @@ class BookingService {
         },
       ).timeout(const Duration(seconds: 30));
 
+      print('📡 Response status: ${response.statusCode}');
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        print('✅ Booking fetched successfully');
         return BookingModel.fromJson(data);
+      } else {
+        String errorMessage = 'Failed to fetch booking (${response.statusCode})';
+        try {
+          final errorData = jsonDecode(response.body);
+          errorMessage = errorData['message'] ?? errorData['error'] ?? errorMessage;
+        } catch (_) {}
+        throw Exception(errorMessage);
       }
-      throw Exception('Failed to fetch booking (${response.statusCode})');
     } catch (error) {
       print('❌ Error fetching booking: $error');
       rethrow;
     }
   }
 
-  // ✅ Cancel booking
+  // ==================== CANCEL BOOKING ====================
   Future<BookingModel> cancelBooking(String bookingId, {String? reason}) async {
     try {
       final token = await _secureStorage.getToken();
       if (token == null) throw Exception('Not authenticated');
 
-      final endpoint = AppConstants.replacePathParams(
-        AppConstants.cancelBookingEndpoint,
-        id: bookingId,
-      );
+      const String baseEndpoint = 'infinity-booking/bookings/{id}/cancel';
+      final endpoint = baseEndpoint.replaceAll('{id}', bookingId);
       final url = AppConstants.buildUrl(endpoint);
+
+      print('🗑️ Cancelling booking: $bookingId');
+      print('🔗 URL: $url');
 
       final response = await _httpClient.put(
         Uri.parse(url),
@@ -581,30 +356,37 @@ class BookingService {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({'reason': reason}),
+        body: jsonEncode({'reason': reason ?? 'Cancelled by customer'}),
       ).timeout(const Duration(seconds: 30));
+
+      print('📡 Response status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        print('✅ Booking cancelled successfully');
         return BookingModel.fromJson(data);
+      } else {
+        String errorMessage = 'Failed to cancel booking (${response.statusCode})';
+        try {
+          final errorData = jsonDecode(response.body);
+          errorMessage = errorData['message'] ?? errorData['error'] ?? errorMessage;
+        } catch (_) {}
+        throw Exception(errorMessage);
       }
-      throw Exception('Failed to cancel booking (${response.statusCode})');
     } catch (error) {
       print('❌ Error cancelling booking: $error');
       rethrow;
     }
   }
 
-  // ✅ Update booking status
+  // ==================== UPDATE BOOKING STATUS ====================
   Future<BookingModel> updateBookingStatus(String bookingId, {required String status}) async {
     try {
       final token = await _secureStorage.getToken();
       if (token == null) throw Exception('Not authenticated');
 
-      final endpoint = AppConstants.replacePathParams(
-        AppConstants.updateBookingStatusEndpoint,
-        id: bookingId,
-      );
+      const String baseEndpoint = 'infinity-booking/bookings/{id}/status';
+      final endpoint = baseEndpoint.replaceAll('{id}', bookingId);
       final url = AppConstants.buildUrl(endpoint);
 
       final response = await _httpClient.put(
@@ -627,13 +409,19 @@ class BookingService {
     }
   }
 
-  // ✅ Get booking statistics
+  // ==================== GET BOOKING STATISTICS ====================
   Future<Map<String, dynamic>> getBookingStatistics() async {
     try {
       final token = await _secureStorage.getToken();
       if (token == null) throw Exception('Not authenticated');
 
-      final url = AppConstants.buildUrl(AppConstants.bookingStatisticsEndpoint);
+      final customerId = await _getCurrentCustomerIdInCorrectFormat();
+      if (customerId == null) throw Exception('Could not determine customer ID');
+
+      const String baseEndpoint = 'infinity-booking/bookings/stats/customer/{customerId}';
+      final endpoint = baseEndpoint.replaceAll('{customerId}', customerId);
+      final url = AppConstants.buildUrl(endpoint);
+
       final response = await _httpClient.get(
         Uri.parse(url),
         headers: {
@@ -652,7 +440,7 @@ class BookingService {
     }
   }
 
-  // ✅ Check slot availability
+  // ==================== CHECK SLOT AVAILABILITY ====================
   Future<bool> checkSlotAvailability({
     required String serviceId,
     required String providerId,
@@ -664,10 +452,7 @@ class BookingService {
       final token = await _secureStorage.getToken();
       if (token == null) throw Exception('Not authenticated');
 
-      // Resolve provider PID first
-      final realProviderPid = await _resolveProviderPid(providerId, serviceId);
-
-      final url = AppConstants.buildUrl(AppConstants.checkSlotAvailabilityEndpoint);
+      final url = AppConstants.buildUrl('infinity-booking/bookings/check-availability');
       final response = await _httpClient.post(
         Uri.parse(url),
         headers: {
@@ -676,7 +461,7 @@ class BookingService {
         },
         body: jsonEncode({
           'serviceId': serviceId,
-          'providerId': realProviderPid,
+          'providerId': providerId,
           'bookingDate': bookingDate,
           'startTime': startTime,
           'endTime': endTime,
@@ -694,7 +479,7 @@ class BookingService {
     }
   }
 
-  // ✅ Process payment
+  // ==================== PROCESS PAYMENT ====================
   Future<Map<String, dynamic>> processPayment({
     required String bookingId,
     required String paymentMethod,
@@ -705,7 +490,9 @@ class BookingService {
       final token = await _secureStorage.getToken();
       if (token == null) throw Exception('Not authenticated');
 
-      final url = AppConstants.buildUrl(AppConstants.processPaymentEndpoint);
+      const String baseEndpoint = 'infinity-booking/payments/process';
+      final url = AppConstants.buildUrl(baseEndpoint);
+
       final response = await _httpClient.post(
         Uri.parse(url),
         headers: {
@@ -730,16 +517,14 @@ class BookingService {
     }
   }
 
-  // ✅ Verify payment
+  // ==================== VERIFY PAYMENT ====================
   Future<Map<String, dynamic>> verifyPayment({required String paymentReference}) async {
     try {
       final token = await _secureStorage.getToken();
       if (token == null) throw Exception('Not authenticated');
 
-      final endpoint = AppConstants.replacePathParams(
-        AppConstants.verifyPaymentEndpoint,
-        reference: paymentReference,
-      );
+      const String baseEndpoint = 'infinity-booking/payments/verify/{reference}';
+      final endpoint = baseEndpoint.replaceAll('{reference}', paymentReference);
       final url = AppConstants.buildUrl(endpoint);
 
       final response = await _httpClient.get(
@@ -760,13 +545,15 @@ class BookingService {
     }
   }
 
-  // ✅ Get payment methods
+  // ==================== GET PAYMENT METHODS ====================
   Future<List<Map<String, dynamic>>> getPaymentMethods() async {
     try {
       final token = await _secureStorage.getToken();
       if (token == null) throw Exception('Not authenticated');
 
-      final url = AppConstants.buildUrl(AppConstants.paymentMethodsEndpoint);
+      const String baseEndpoint = 'infinity-booking/payments/methods';
+      final url = AppConstants.buildUrl(baseEndpoint);
+
       final response = await _httpClient.get(
         Uri.parse(url),
         headers: {
@@ -793,30 +580,23 @@ class BookingService {
   List<Map<String, dynamic>> _getFallbackPaymentMethods() {
     return [
       {
-        'id': 'telebirr',
-        'name': 'Telebirr',
-        'description': 'Mobile money payment',
-        'icon': '📱',
-        'currency': 'ETB'
-      },
-      {
-        'id': 'chapa',
-        'name': 'Chapa',
-        'description': 'Card & mobile payment',
-        'icon': '💳',
-        'currency': 'ETB'
-      },
-      {
         'id': 'cash',
         'name': 'Cash',
         'description': 'Pay in person',
         'icon': '💰',
         'currency': 'ETB'
+      },
+      {
+        'id': 'bank_transfer',
+        'name': 'Bank Transfer',
+        'description': 'Direct bank transfer',
+        'icon': '🏦',
+        'currency': 'ETB'
       }
     ];
   }
 
-  // ✅ Reschedule booking
+  // ==================== RESCHEDULE BOOKING ====================
   Future<BookingModel> rescheduleBooking({
     required String bookingId,
     required String newDate,
@@ -827,10 +607,8 @@ class BookingService {
       final token = await _secureStorage.getToken();
       if (token == null) throw Exception('Not authenticated');
 
-      final endpoint = AppConstants.replacePathParams(
-        AppConstants.rescheduleBookingEndpoint,
-        id: bookingId,
-      );
+      const String baseEndpoint = 'infinity-booking/bookings/{id}/reschedule';
+      final endpoint = baseEndpoint.replaceAll('{id}', bookingId);
       final url = AppConstants.buildUrl(endpoint);
 
       final response = await _httpClient.put(
@@ -857,66 +635,28 @@ class BookingService {
     }
   }
 
-  // ✅ Get upcoming bookings
+  // ==================== GET UPCOMING BOOKINGS ====================
   Future<List<BookingModel>> getUpcomingBookings() async {
     try {
-      final token = await _secureStorage.getToken();
-      if (token == null) throw Exception('Not authenticated');
-
-      final url = AppConstants.buildUrl(AppConstants.upcomingBookingsEndpoint);
-      final response = await _httpClient.get(
-        Uri.parse(url),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final List<dynamic> bookings = data['bookings'] ?? data['data'] ?? data;
-        return bookings.map((json) => BookingModel.fromJson(json)).toList();
-      }
-      throw Exception('Failed to fetch upcoming bookings (${response.statusCode})');
+      final bookings = await getUserBookings(status: 'confirmed');
+      final now = DateTime.now();
+      return bookings.where((booking) {
+        final bookingDateTime = booking.bookingDate;
+        return bookingDateTime.isAfter(now) || 
+               bookingDateTime.isAtSameMomentAs(now);
+      }).toList();
     } catch (error) {
       print('❌ Error fetching upcoming bookings: $error');
       rethrow;
     }
   }
 
-  // ✅ Complete booking
+  // ==================== COMPLETE BOOKING ====================
   Future<BookingModel> completeBooking(String bookingId) async {
-    try {
-      final token = await _secureStorage.getToken();
-      if (token == null) throw Exception('Not authenticated');
-
-      final endpoint = AppConstants.replacePathParams(
-        'infinity-booking/bookings/{id}/complete',
-        id: bookingId,
-      );
-      final url = AppConstants.buildUrl(endpoint);
-
-      final response = await _httpClient.put(
-        Uri.parse(url),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({}),
-      ).timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return BookingModel.fromJson(data);
-      }
-      throw Exception('Failed to complete booking (${response.statusCode})');
-    } catch (error) {
-      print('❌ Error completing booking: $error');
-      rethrow;
-    }
+    return await updateBookingStatus(bookingId, status: 'completed');
   }
 
-  // ✅ Rate booking
+  // ==================== RATE BOOKING ====================
   Future<BookingModel> rateBooking({
     required String bookingId,
     required double rating,
@@ -926,11 +666,8 @@ class BookingService {
       final token = await _secureStorage.getToken();
       if (token == null) throw Exception('Not authenticated');
 
-      final endpoint = AppConstants.replacePathParams(
-        'infinity-booking/bookings/{id}/rate',
-        id: bookingId,
-      );
-      final url = AppConstants.buildUrl(endpoint);
+      const String baseEndpoint = 'infinity-booking/reviews';
+      final url = AppConstants.buildUrl(baseEndpoint);
 
       final response = await _httpClient.post(
         Uri.parse(url),
@@ -939,13 +676,18 @@ class BookingService {
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
+          'bookingId': bookingId,
           'rating': rating,
-          'review': review,
+          'review': review ?? '',
         }),
       ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 201) {
         final data = jsonDecode(response.body);
+        
+        // Also update the booking status to reflect the review
+        await updateBookingStatus(bookingId, status: 'completed');
+        
         return BookingModel.fromJson(data);
       }
       throw Exception('Failed to rate booking (${response.statusCode})');
@@ -953,5 +695,67 @@ class BookingService {
       print('❌ Error rating booking: $error');
       rethrow;
     }
+  }
+
+  // ==================== HELPER METHODS ====================
+  
+  // Get customer ID in correct format
+  Future<String?> _getCurrentCustomerIdInCorrectFormat() async {
+    try {
+      final user = await _secureStorage.getUserData();
+      
+      // Priority 1: cid field (CUST- format)
+      if (user?.cid != null && user!.cid!.isNotEmpty) {
+        return user.cid;
+      }
+      
+      // Priority 2: Saved user ID
+      final savedUserId = await _secureStorage.getUserId();
+      if (savedUserId != null && savedUserId.isNotEmpty) {
+        return savedUserId;
+      }
+      
+      // Priority 3: Use user ID
+      if (user != null && user.id.isNotEmpty) {
+        return user.id;
+      }
+      
+      return null;
+    } catch (e) {
+      print('❌ Error getting customer ID: $e');
+      return null;
+    }
+  }
+
+  // Extract CUST- ID from JWT token
+  String? _extractCustIdFromToken(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return null;
+      
+      final payload = parts[1];
+      final String normalized = base64Url.normalize(payload);
+      final String decoded = utf8.decode(base64Url.decode(normalized));
+      final Map<String, dynamic> payloadMap = jsonDecode(decoded);
+      
+      final possibleFields = ['cid', 'customerId', 'customer_id', 'custId', 'userId', 'user_id'];
+      
+      for (final field in possibleFields) {
+        final value = payloadMap[field]?.toString();
+        if (value != null && value.isNotEmpty) {
+          return value;
+        }
+      }
+      
+      return null;
+    } catch (e) {
+      print('❌ Error decoding token: $e');
+      return null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _httpClient.close();
   }
 }

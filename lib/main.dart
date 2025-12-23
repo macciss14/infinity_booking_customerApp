@@ -1,10 +1,12 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'config/route_helper.dart';
 import 'services/auth_service.dart';
 import 'screens/landing/landing_page.dart';
 import 'screens/main/main_screen.dart';
 import 'utils/constants.dart';
+import 'providers/notification_provider.dart';
 
 void main() {
   runApp(const MyApp());
@@ -15,13 +17,37 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: AppStrings.appName,
-      theme: appTheme(),
-      initialRoute: RouteHelper.initial,
-      onGenerateRoute: RouteHelper.generateRoute,
-      debugShowCheckedModeBanner: false,
-      home: const AppStartupScreen(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
+      ],
+      child: MaterialApp(
+        title: AppStrings.appName,
+        theme: ThemeData(
+          useMaterial3: true,
+          scaffoldBackgroundColor: AppColors.scaffoldBackground,
+          appBarTheme: const AppBarTheme(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            titleTextStyle: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+            elevation: 1,
+            shadowColor: AppColors.shadowMedium,
+          ),
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: AppColors.primary,
+            primary: AppColors.primary,
+            secondary: AppColors.secondary,
+          ),
+        ),
+        initialRoute: RouteHelper.initial,
+        onGenerateRoute: RouteHelper.generateRoute,
+        debugShowCheckedModeBanner: false,
+        home: const AppStartupScreen(),
+      ),
     );
   }
 }

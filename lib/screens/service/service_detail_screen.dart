@@ -1,4 +1,4 @@
-// lib/screens/service/service_detail_screen.dart - OPTIMIZED VERSION
+// lib/screens/service/service_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/service_model.dart';
@@ -61,33 +61,44 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
       // Find the specific service from the list
       ServiceModel? foundService;
 
-      for (var service in allServices) {
-        if (service.id == widget.serviceId ||
-            service.serviceId == widget.serviceId) {
-          foundService = service;
-          print('✅ Found service in list: ${service.name}');
-
-          // Extract provider phone and profile photo
-          _extractProviderDetails(service);
-          break;
+      // First, check if we already have a service object passed in
+      if (widget.service != null && 
+          (widget.service!.id == widget.serviceId || 
+           widget.service!.serviceId == widget.serviceId)) {
+        foundService = widget.service!;
+        print('✅ Using passed service object: ${foundService.name}');
+      } else {
+        // Otherwise search in the list
+        for (var service in allServices) {
+          if (service.id == widget.serviceId ||
+              service.serviceId == widget.serviceId) {
+            foundService = service;
+            print('✅ Found service in list: ${service.name}');
+            break;
+          }
         }
       }
 
       if (foundService == null) {
-        print('⚠️ Service not found in list');
+        print('⚠️ Service not found');
         _showError('Service not found');
       } else {
         _loadedService = foundService;
+        // Extract provider details
+        _extractProviderDetails(foundService);
         setState(() => _isLoading = false);
       }
     }).catchError((error) {
       print('❌ Error loading services: $error');
-      _showError('Failed to load service details');
+      _showError('Failed to load service details: $error');
     });
   }
 
   void _extractProviderDetails(ServiceModel service) {
     print('🔍 Extracting provider details...');
+    print('🔍 Provider PID from service: ${service.providerPid}');
+    print('🔍 Provider ID from service: ${service.providerId}');
+    print('🔍 Provider object from service: ${service.provider}');
 
     // 1. First try to get phone from service.providerPhone
     if (service.providerPhone != null && service.providerPhone!.isNotEmpty) {
@@ -95,73 +106,96 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
       print('✅ Got phone from service.providerPhone: $_providerPhone');
     }
 
-    // 2. Try to get phone from provider object
-    if ((_providerPhone == null || _providerPhone!.isEmpty) &&
-        service.provider != null &&
-        service.provider is Map) {
-      final providerMap = service.provider as Map<String, dynamic>;
+    // 2. Try to get phone and PID from provider object
+    if (service.provider != null && service.provider is Map) {
+      try {
+        final providerMap = service.provider as Map<String, dynamic>;
+        
+        // Check for PID in provider object - THIS IS CRITICAL!
+        if (service.providerPid == null || service.providerPid!.isEmpty) {
+          // Try to get PID from provider object
+          final pidFromProvider = providerMap['pid']?.toString().trim();
+          if (pidFromProvider != null && pidFromProvider.isNotEmpty) {
+            print('✅ Found PID in provider object: $pidFromProvider');
+            // Note: We can't update service.providerPid as it's final, 
+            // but we can log it for debugging
+          }
+        }
 
-      // Try different phone field names
-      _providerPhone = providerMap['phone']?.toString() ??
-          providerMap['phoneNumber']?.toString() ??
-          providerMap['mobile']?.toString() ??
-          providerMap['contactNumber']?.toString();
+        // Try different phone field names
+        if ((_providerPhone == null || _providerPhone!.isEmpty)) {
+          _providerPhone = providerMap['phone']?.toString() ??
+              providerMap['phoneNumber']?.toString() ??
+              providerMap['mobile']?.toString() ??
+              providerMap['contactNumber']?.toString();
 
-      if (_providerPhone != null && _providerPhone!.isNotEmpty) {
-        print('✅ Got phone from provider object: $_providerPhone');
-      }
+          if (_providerPhone != null && _providerPhone!.isNotEmpty) {
+            print('✅ Got phone from provider object: $_providerPhone');
+          }
+        }
 
-      // Get profile photo from provider object
-      _providerProfilePhoto = providerMap['profilePhoto']?.toString() ??
-          providerMap['avatar']?.toString() ??
-          providerMap['image']?.toString() ??
-          providerMap['photo']?.toString() ??
-          providerMap['profileImage']?.toString();
+        // Get profile photo from provider object
+        _providerProfilePhoto = providerMap['profilePhoto']?.toString() ??
+            providerMap['avatar']?.toString() ??
+            providerMap['image']?.toString() ??
+            providerMap['photo']?.toString() ??
+            providerMap['profileImage']?.toString();
 
-      if (_providerProfilePhoto != null && _providerProfilePhoto!.isNotEmpty) {
-        print(
-            '✅ Got profile photo from provider object: $_providerProfilePhoto');
+        if (_providerProfilePhoto != null && _providerProfilePhoto!.isNotEmpty) {
+          print('✅ Got profile photo from provider object: $_providerProfilePhoto');
+        }
+      } catch (e) {
+        print('⚠️ Error parsing provider object: $e');
       }
     }
 
     // 3. If still no phone, check service JSON for any phone-related fields
     if (_providerPhone == null || _providerPhone!.isEmpty) {
-      final serviceJson = service.toJson();
-      for (var key in serviceJson.keys) {
-        final keyStr = key.toString().toLowerCase();
-        if ((keyStr.contains('phone') ||
-                keyStr.contains('mobile') ||
-                keyStr.contains('contact')) &&
-            serviceJson[key] != null &&
-            serviceJson[key]!.toString().isNotEmpty) {
-          _providerPhone = serviceJson[key]!.toString();
-          print('✅ Found phone in service field "$key": $_providerPhone');
-          break;
+      try {
+        final serviceJson = service.toJson();
+        for (var key in serviceJson.keys) {
+          final keyStr = key.toString().toLowerCase();
+          if ((keyStr.contains('phone') ||
+                  keyStr.contains('mobile') ||
+                  keyStr.contains('contact')) &&
+              serviceJson[key] != null &&
+              serviceJson[key]!.toString().isNotEmpty) {
+            _providerPhone = serviceJson[key]!.toString();
+            print('✅ Found phone in service field "$key": $_providerPhone');
+            break;
+          }
         }
+      } catch (e) {
+        print('⚠️ Error checking service JSON for phone: $e');
       }
     }
 
     // 4. If still no profile photo, check service JSON for any image fields
     if (_providerProfilePhoto == null || _providerProfilePhoto!.isEmpty) {
-      final serviceJson = service.toJson();
-      for (var key in serviceJson.keys) {
-        final keyStr = key.toString().toLowerCase();
-        if ((keyStr.contains('profile') ||
-                keyStr.contains('avatar') ||
-                keyStr.contains('image')) &&
-            serviceJson[key] != null &&
-            serviceJson[key]!.toString().isNotEmpty) {
-          _providerProfilePhoto = serviceJson[key]!.toString();
-          print(
-              '✅ Found profile photo in service field "$key": $_providerProfilePhoto');
-          break;
+      try {
+        final serviceJson = service.toJson();
+        for (var key in serviceJson.keys) {
+          final keyStr = key.toString().toLowerCase();
+          if ((keyStr.contains('profile') ||
+                  keyStr.contains('avatar') ||
+                  keyStr.contains('image')) &&
+              serviceJson[key] != null &&
+              serviceJson[key]!.toString().isNotEmpty) {
+            _providerProfilePhoto = serviceJson[key]!.toString();
+            print('✅ Found profile photo in service field "$key": $_providerProfilePhoto');
+            break;
+          }
         }
+      } catch (e) {
+        print('⚠️ Error checking service JSON for profile photo: $e');
       }
     }
 
     print('📊 Final extracted details:');
     print('   - Phone: $_providerPhone');
     print('   - Profile Photo: $_providerProfilePhoto');
+    print('   - Provider PID: ${service.providerPid}');
+    print('   - Provider ID: ${service.providerId}');
   }
 
   void _showError(String message) {
@@ -180,34 +214,103 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
 
   void _navigateToBooking() {
     if (_loadedService == null) {
-      _showBookingError();
+      _showBookingError('Service not loaded');
       return;
     }
 
-    final providerId = _loadedService!.providerId;
-
-    if (providerId == null || providerId.isEmpty) {
-      _showBookingError();
+    // CRITICAL: Use providerPid first, then providerId as fallback
+    String? bookingProviderId;
+    
+    // First priority: providerPid (should be PROV-xxx)
+    if (_loadedService!.providerPid != null && 
+        _loadedService!.providerPid!.isNotEmpty) {
+      bookingProviderId = _loadedService!.providerPid!;
+      print('✅ Using providerPid for booking: $bookingProviderId');
+      print('✅ ProviderPid starts with PROV-: ${bookingProviderId.startsWith('PROV-')}');
+    } 
+    // Second priority: providerId (might be PROV-xxx or MongoDB ID)
+    else if (_loadedService!.providerId != null && 
+             _loadedService!.providerId!.isNotEmpty) {
+      bookingProviderId = _loadedService!.providerId!;
+      print('⚠️ Using providerId for booking (fallback): $bookingProviderId');
+      print('⚠️ ProviderId starts with PROV-: ${bookingProviderId.startsWith('PROV-')}');
+      
+      // If it's a MongoDB ID (24 chars), we have a problem
+      if (bookingProviderId.length == 24) {
+        _showBookingError(
+          'Provider ID format issue detected. '
+          'Please contact support for assistance.'
+        );
+        return;
+      }
+    } 
+    // No provider ID found
+    else {
+      _showBookingError('Provider information not available. Cannot book.');
       return;
     }
 
-    print('📋 Booking with provider ID: $providerId');
+    print('📋 Booking details:');
+    print('   - Service ID: ${widget.serviceId}');
+    print('   - Provider ID for booking: $bookingProviderId');
+    print('   - Provider ID format: ${bookingProviderId.startsWith('PROV-') ? "PROV- format" : "Other format"}');
+    
     RouteHelper.goToBookingWithProvider(
       context: context,
       serviceId: widget.serviceId,
-      providerId: providerId,
+      providerId: bookingProviderId,
     );
   }
 
-  void _showBookingError() {
+  void _showBookingError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-          content: Text('Provider information unavailable. Cannot book.')),
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 3),
+        backgroundColor: Colors.red,
+      ),
     );
   }
 
   void _viewReviews() {
     RouteHelper.goToReviews(context, widget.serviceId);
+  }
+
+  void _checkAndNavigateToReview() async {
+    try {
+      final canReview = await _reviewService.canReviewService(widget.serviceId);
+
+      if (canReview) {
+        RouteHelper.goToWriteReview(
+          context,
+          serviceId: widget.serviceId,
+          serviceName: _loadedService?.name ?? widget.service?.name ?? 'Unknown Service',
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'You need to book and complete this service before writing a review.',
+              style: TextStyle(color: Colors.white),
+            ),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (error) {
+      print('❌ Error checking review eligibility: $error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Error checking review eligibility: ${error.toString()}',
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   String _formatDate(DateTime? date) {
@@ -222,16 +325,34 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
     return Colors.green;
   }
 
+  Color _getStatusColor(String? status) {
+    if (status == null) return Colors.grey;
+    switch (status.toLowerCase()) {
+      case 'published':
+      case 'active':
+        return Colors.green;
+      case 'draft':
+        return Colors.orange;
+      case 'archived':
+      case 'suspended':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Service Details'),
         backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         actions: [
           IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () => Navigator.pop(context)),
+            icon: const Icon(Icons.close, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
         ],
       ),
       body: _isLoading
@@ -251,7 +372,10 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
         children: [
           CircularProgressIndicator(),
           SizedBox(height: 16),
-          Text('Loading service details...'),
+          Text(
+            'Loading service details...',
+            style: TextStyle(fontSize: 16, color: Colors.grey),
+          ),
         ],
       ),
     );
@@ -287,8 +411,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
               onPressed: _retryLoading,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
               ),
               child: const Text(
                 'Try Again',
@@ -313,240 +436,26 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'The service you are looking for does not exist',
-            style: TextStyle(fontSize: 16, color: Colors.grey),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 32.0),
+            child: Text(
+              'The service you are looking for does not exist or has been removed.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
           ),
           const SizedBox(height: 24),
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+            ),
             child: const Text('Go Back'),
           ),
         ],
       ),
     );
   }
-
-  Widget _buildProviderCard(ServiceModel service) {
-    final providerName = service.displayProviderName;
-    final providerEmail = service.providerEmail;
-    final providerPhone = _providerPhone;
-    final profilePhoto = _providerProfilePhoto;
-    final isVerified = service.isProviderVerified;
-    final rating = service.providerRating;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Section title - REMOVED provider ID display
-            const Text('Service Provider',
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color.fromARGB(255, 93, 90, 90))),
-            const SizedBox(height: 12),
-
-            // Provider Header with Profile Photo and Name
-            Row(
-              children: [
-                // Profile Photo or Avatar with Initials
-                if (profilePhoto != null && profilePhoto.isNotEmpty)
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(30),
-                      image: DecorationImage(
-                        image: NetworkImage(profilePhoto),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  )
-                else
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: Center(
-                      child: Text(
-                        service.providerInitials,
-                        style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary),
-                      ),
-                    ),
-                  ),
-                const SizedBox(width: 16),
-
-                // Name and verification badge
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              providerName,
-                              style: const TextStyle(
-                                  fontSize: 18, fontWeight: FontWeight.w700),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (isVerified)
-                            Container(
-                              margin: const EdgeInsets.only(left: 8),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.blue[50],
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.verified,
-                                      size: 14, color: Colors.blue),
-                                  const SizedBox(width: 4),
-                                  Text('Verified',
-                                      style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.blue[700])),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
-
-                      // Provider rating if available
-                      if (rating != null && rating > 0)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.star, size: 14, color: Colors.amber),
-                              const SizedBox(width: 4),
-                              Text(rating.toStringAsFixed(1),
-                                  style: const TextStyle(fontSize: 12)),
-                              const SizedBox(width: 4),
-                              Text('(${service.reviewCount ?? 0} reviews)',
-                                  style: const TextStyle(
-                                      fontSize: 12, color: Colors.grey)),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-
-            // Contact Details Section
-            if (providerEmail != null || providerPhone != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Divider(),
-                    const SizedBox(height: 8),
-                    const Text('Contact Information',
-                        style: TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-
-                    // Email
-                    if (providerEmail != null && providerEmail.isNotEmpty)
-                      _buildContactRow(Icons.email_outlined, providerEmail),
-
-                    // Phone
-                    if (providerPhone != null && providerPhone.isNotEmpty)
-                      _buildContactRow(Icons.phone_outlined, providerPhone),
-                  ],
-                ),
-              ),
-
-            // Status indicator (optional, shows what data is available)
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(6),
-                border:
-                    Border.all(color: const Color.fromARGB(255, 237, 233, 233)),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    size: 14,
-                    color: Colors.grey[600],
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Contact info available',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey[700],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        Text(
-                          'Email: ${providerEmail != null ? '✓' : '✗'} • Phone: ${providerPhone != null ? '✓' : '✗'}',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildContactRow(IconData icon, String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: Colors.grey[600]),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(fontSize: 14),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // [Keep all other UI methods exactly as they were in the previous version]
-  // _buildServiceImage, _buildPricingCard, _buildDescriptionCard, etc.
 
   Widget _buildServiceImage(ServiceModel service) {
     return AspectRatio(
@@ -606,27 +515,279 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
     );
   }
 
-  Widget _buildPricingCard(ServiceModel service) {
+  Widget _buildProviderCard(ServiceModel service) {
+    final providerName = service.displayProviderName;
+    final providerEmail = service.providerEmail;
+    final providerPhone = _providerPhone;
+    final profilePhoto = _providerProfilePhoto;
+    final isVerified = service.isProviderVerified;
+    final rating = service.providerRating;
+    final providerPid = service.providerPid;
+    final providerId = service.providerId;
+
     return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Pricing',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            const Text(
+              'Service Provider',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Color.fromARGB(255, 93, 90, 90),
+              ),
+            ),
             const SizedBox(height: 12),
-            _buildPricingItem('Service Price',
-                '${service.price.toStringAsFixed(2)} ${service.priceUnit ?? 'ETB'}'),
+
+            // Provider Header with Profile Photo and Name
+            Row(
+              children: [
+                // Profile Photo or Avatar with Initials
+                if (profilePhoto != null && profilePhoto.isNotEmpty)
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(30),
+                      image: DecorationImage(
+                        image: NetworkImage(profilePhoto),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: Center(
+                      child: Text(
+                        service.providerInitials,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                const SizedBox(width: 16),
+
+                // Name and verification badge
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              providerName,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (isVerified)
+                            Container(
+                              margin: const EdgeInsets.only(left: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.blue[50],
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.verified,
+                                      size: 14, color: Colors.blue),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Verified',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.blue[700],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+
+                      // Provider rating if available
+                      if (rating != null && rating > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.star,
+                                  size: 14, color: Colors.amber),
+                              const SizedBox(width: 4),
+                              Text(
+                                rating.toStringAsFixed(1),
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '(${service.reviewCount ?? 0} reviews)',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            // Provider ID Information (Debug info - can be removed in production)
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Provider ID Info:',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  if (providerPid != null && providerPid.isNotEmpty)
+                    Text(
+                      'PID: $providerPid',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: providerPid.startsWith('PROV-') ? Colors.green : Colors.orange,
+                      ),
+                    ),
+                  if (providerId != null && providerId.isNotEmpty)
+                    Text(
+                      'ID: $providerId',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: providerId.startsWith('PROV-') ? Colors.green : Colors.grey,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
+            // Contact Details Section
+            if (providerEmail != null || providerPhone != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Contact Information',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Email
+                    if (providerEmail != null && providerEmail.isNotEmpty)
+                      _buildContactRow(Icons.email_outlined, providerEmail),
+
+                    // Phone
+                    if (providerPhone != null && providerPhone.isNotEmpty)
+                      _buildContactRow(Icons.phone_outlined, providerPhone),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContactRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: Colors.grey[600]),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 14),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPricingCard(ServiceModel service) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Pricing',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+            _buildPricingItem(
+              'Service Price',
+              '${service.price.toStringAsFixed(2)} ${service.priceUnit ?? 'ETB'}',
+            ),
             const SizedBox(height: 8),
-            _buildPricingItem('Booking Fee',
-                '${(service.bookingPrice ?? 0).toStringAsFixed(2)} ${service.priceUnit ?? 'ETB'}'),
+            _buildPricingItem(
+              'Booking Fee',
+              '${(service.bookingPrice ?? 0).toStringAsFixed(2)} ${service.priceUnit ?? 'ETB'}',
+            ),
             const Divider(height: 24),
-            _buildPricingItem('Total',
-                '${service.totalPrice.toStringAsFixed(2)} ${service.priceUnit ?? 'ETB'}',
-                isTotal: true),
-            if (service.pricingNotes != null &&
-                service.pricingNotes!.isNotEmpty) ...[
+            _buildPricingItem(
+              'Total',
+              '${service.totalPrice.toStringAsFixed(2)} ${service.priceUnit ?? 'ETB'}',
+              isTotal: true,
+            ),
+            if (service.pricingNotes != null && service.pricingNotes!.isNotEmpty) ...[
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -635,8 +796,10 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.amber.withOpacity(0.3)),
                 ),
-                child: Text(service.pricingNotes!,
-                    style: const TextStyle(fontSize: 13, color: Colors.amber)),
+                child: Text(
+                  service.pricingNotes!,
+                  style: const TextStyle(fontSize: 13, color: Colors.amber),
+                ),
               ),
             ],
           ],
@@ -649,16 +812,22 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label,
-            style: TextStyle(
-                fontSize: 15,
-                color: Colors.grey[700],
-                fontWeight: isTotal ? FontWeight.w600 : FontWeight.normal)),
-        Text(value,
-            style: TextStyle(
-                fontSize: 15,
-                fontWeight: isTotal ? FontWeight.bold : FontWeight.w600,
-                color: isTotal ? AppColors.secondary : Colors.grey[900])),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 15,
+            color: Colors.grey[700],
+            fontWeight: isTotal ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.w600,
+            color: isTotal ? AppColors.secondary : Colors.grey[900],
+          ),
+        ),
       ],
     );
   }
@@ -667,15 +836,26 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Description',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+        const Text(
+          'Description',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 12),
         Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Text(service.description,
-                style: const TextStyle(
-                    fontSize: 15, height: 1.6, color: Colors.grey)),
+            child: Text(
+              service.description,
+              style: const TextStyle(
+                fontSize: 15,
+                height: 1.6,
+                color: Colors.grey,
+              ),
+            ),
           ),
         ),
       ],
@@ -701,14 +881,19 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
         }
 
         return Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Performance Metrics',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                const Text(
+                  'Performance Metrics',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                ),
                 const SizedBox(height: 16),
                 GridView.count(
                   shrinkWrap: true,
@@ -719,20 +904,29 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                   childAspectRatio: 1.5,
                   children: [
                     _buildMetricCard(
-                        'Bookings', service.totalBookings?.toString() ?? '0',
-                        icon: Icons.bookmark),
+                      'Bookings',
+                      service.totalBookings?.toString() ?? '0',
+                      icon: Icons.bookmark,
+                    ),
                     GestureDetector(
                       onTap: _viewReviews,
                       child: _buildMetricCard(
-                          'Reviews', totalReviews.toString(),
-                          icon: Icons.reviews, hasAction: totalReviews > 0),
+                        'Reviews',
+                        totalReviews.toString(),
+                        icon: Icons.reviews,
+                        hasAction: totalReviews > 0,
+                      ),
                     ),
-                    _buildMetricCard('Rating',
-                        avgRating > 0 ? avgRating.toStringAsFixed(1) : 'N/A',
-                        icon: Icons.star),
-                    _buildMetricCard('Available',
-                        service.getAvailableSlotsCount().toString(),
-                        icon: Icons.event_available),
+                    _buildMetricCard(
+                      'Rating',
+                      avgRating > 0 ? avgRating.toStringAsFixed(1) : 'N/A',
+                      icon: Icons.star,
+                    ),
+                    _buildMetricCard(
+                      'Available',
+                      service.getAvailableSlotsCount().toString(),
+                      icon: Icons.event_available,
+                    ),
                   ],
                 ),
               ],
@@ -748,43 +942,54 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color:
-            hasAction ? AppColors.primary.withOpacity(0.1) : Colors.grey[100],
+        color: hasAction ? AppColors.primary.withOpacity(0.1) : Colors.grey[100],
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-            color: hasAction
-                ? AppColors.primary.withOpacity(0.3)
-                : Colors.grey[300]!),
+          color: hasAction
+              ? AppColors.primary.withOpacity(0.3)
+              : Colors.grey[300]!,
+        ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           if (icon != null)
-            Icon(icon,
-                size: 24,
-                color: hasAction ? AppColors.primary : Colors.grey[600]),
+            Icon(
+              icon,
+              size: 24,
+              color: hasAction ? AppColors.primary : Colors.grey[600],
+            ),
           const SizedBox(height: 8),
-          Text(value,
-              style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: hasAction ? AppColors.primary : Colors.grey[900])),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: hasAction ? AppColors.primary : Colors.grey[900],
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 13,
-                  color: hasAction
-                      ? AppColors.primary.withOpacity(0.8)
-                      : Colors.grey[600],
-                  fontWeight: FontWeight.w500)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: hasAction
+                  ? AppColors.primary.withOpacity(0.8)
+                  : Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
           if (hasAction)
             const Padding(
               padding: EdgeInsets.only(top: 4),
-              child: Text('Tap to view',
-                  style: TextStyle(
-                      fontSize: 10,
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.bold)),
+              child: Text(
+                'Tap to view',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
         ],
       ),
@@ -801,35 +1006,47 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
             : Colors.green;
 
     return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Availability',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            const Text(
+              'Availability',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.symmetric(vertical: 16),
               alignment: Alignment.center,
               child: Column(
                 children: [
-                  Text(status,
-                      style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: statusColor)),
+                  Text(
+                    status,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: statusColor,
+                    ),
+                  ),
                   const SizedBox(height: 8),
-                  Text('$availableSlots slots available',
-                      style: const TextStyle(fontSize: 14, color: Colors.grey)),
+                  Text(
+                    '$availableSlots slots available',
+                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 8),
             Text(
-                '${service.workingDaysCount} days/week • ${service.totalTimeSlots} slots total',
-                style: const TextStyle(fontSize: 14, color: Colors.grey),
-                textAlign: TextAlign.center),
+              '${service.workingDaysCount} days/week • ${service.totalTimeSlots} slots total',
+              style: const TextStyle(fontSize: 14, color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),
@@ -838,22 +1055,32 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
 
   Widget _buildSidebar(ServiceModel service) {
     return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Service Status',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            const Text(
+              'Service Status',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
                 _buildStatusBadge(
-                    service.availabilityStatus, _getAvailabilityColor(service)),
-                _buildStatusBadge(service.status ?? 'published',
-                    _getStatusColor(service.status)),
+                  service.availabilityStatus,
+                  _getAvailabilityColor(service),
+                ),
+                _buildStatusBadge(
+                  service.status ?? 'published',
+                  _getStatusColor(service.status),
+                ),
                 if (service.isVerified == true)
                   _buildStatusBadge('Verified', Colors.blue),
                 if (service.isFeatured == true)
@@ -861,15 +1088,26 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
               ],
             ),
             const SizedBox(height: 24),
-            const Text('Quick Info',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            const Text(
+              'Quick Info',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 12),
-            _buildInfoRow(Icons.remove_red_eye, 'Views',
-                service.views?.toString() ?? '0'),
-            _buildInfoRow(Icons.calendar_today, 'Created',
-                _formatDate(service.createdAt)),
             _buildInfoRow(
-                Icons.update, 'Updated', _formatDate(service.updatedAt)),
+              Icons.remove_red_eye,
+              'Views',
+              service.views?.toString() ?? '0',
+            ),
+            _buildInfoRow(
+              Icons.calendar_today,
+              'Created',
+              _formatDate(service.createdAt),
+            ),
+            _buildInfoRow(
+              Icons.update,
+              'Updated',
+              _formatDate(service.updatedAt),
+            ),
             FutureBuilder<List<ReviewModel>>(
               future: _reviewsFuture,
               builder: (context, snapshot) {
@@ -888,7 +1126,8 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                   backgroundColor: AppColors.primaryLight,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 child: FutureBuilder<List<ReviewModel>>(
                   future: _reviewsFuture,
@@ -915,9 +1154,14 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: color.withOpacity(0.3)),
       ),
-      child: Text(text.toUpperCase(),
-          style: TextStyle(
-              fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+      child: Text(
+        text.toUpperCase(),
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
+      ),
     );
   }
 
@@ -926,33 +1170,28 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: const Color.fromARGB(255, 116, 113, 113)),
+          Icon(
+            icon,
+            size: 20,
+            color: const Color.fromARGB(255, 116, 113, 113),
+          ),
           const SizedBox(width: 12),
           Expanded(
-              child: Text(label,
-                  style: const TextStyle(fontSize: 15, color: Colors.grey))),
-          Text(value,
-              style:
-                  const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 15, color: Colors.grey),
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
-  }
-
-  Color _getStatusColor(String? status) {
-    if (status == null) return const Color.fromARGB(255, 167, 167, 167);
-    switch (status.toLowerCase()) {
-      case 'published':
-      case 'active':
-        return Colors.green;
-      case 'draft':
-        return Colors.orange;
-      case 'archived':
-      case 'suspended':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
   }
 
   Widget _buildServiceDetails(ServiceModel service) {
@@ -963,9 +1202,14 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
         children: [
           _buildServiceImage(service),
           const SizedBox(height: 20),
-          Text(service.name,
-              style: const TextStyle(
-                  fontSize: 24, fontWeight: FontWeight.bold, height: 1.3)),
+          Text(
+            service.name,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              height: 1.3,
+            ),
+          ),
           const SizedBox(height: 8),
           _buildPricingCard(service),
           const SizedBox(height: 20),
@@ -990,12 +1234,37 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                 backgroundColor: AppColors.primary,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-              child: const Text('Book This Service',
-                  style: TextStyle(fontSize: 16, color: Colors.white)),
+              child: const Text(
+                'Book This Service',
+                style: TextStyle(fontSize: 16, color: Colors.white),
+              ),
             ),
           ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: _checkAndNavigateToReview,
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                side: BorderSide(color: AppColors.primary),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(
+                'Write a Review',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
         ],
       ),
     );
