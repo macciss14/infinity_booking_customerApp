@@ -2,7 +2,9 @@
 import 'package:flutter/material.dart';
 import '../../models/service_model.dart';
 import '../../models/booking_model.dart';
+import '../../models/provider_model.dart'; // ADD THIS IMPORT
 import '../../services/booking_service.dart';
+import '../../services/provider_service.dart'; // ADD THIS IMPORT
 import '../../utils/constants.dart';
 import '../../config/route_helper.dart';
 
@@ -13,6 +15,7 @@ class SkipPaymentConfirmationScreen extends StatefulWidget {
   final String bookingDate;
   final String? notes;
   final String? providerId;
+  final String? providerName; // ADD THIS
 
   const SkipPaymentConfirmationScreen({
     super.key,
@@ -22,6 +25,7 @@ class SkipPaymentConfirmationScreen extends StatefulWidget {
     required this.bookingDate,
     this.notes,
     this.providerId,
+    this.providerName, // ADD THIS
   });
 
   @override
@@ -32,7 +36,55 @@ class SkipPaymentConfirmationScreen extends StatefulWidget {
 class _SkipPaymentConfirmationScreenState
     extends State<SkipPaymentConfirmationScreen> {
   final BookingService _bookingService = BookingService();
+  final ProviderService _providerService = ProviderService(); // ADD THIS
+  
   bool _loading = false;
+  bool _isLoadingProvider = true; // ADD THIS
+  String? _providerDisplayName; // ADD THIS
+  ProviderModel? _provider; // ADD THIS
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProviderDetails(); // ADD THIS
+  }
+
+  // ADD THIS METHOD
+  Future<void> _loadProviderDetails() async {
+    if (widget.providerId == null || widget.providerId!.isEmpty) {
+      setState(() {
+        _providerDisplayName = widget.providerName ?? widget.service.displayProviderName;
+        _isLoadingProvider = false;
+      });
+      return;
+    }
+
+    try {
+      print('🔄 Loading provider details for ID: ${widget.providerId}');
+      final provider = await _providerService.getProviderSmart(widget.providerId!);
+      
+      if (provider != null) {
+        setState(() {
+          _provider = provider;
+          _providerDisplayName = provider.fullname;
+          print('✅ Loaded provider: $_providerDisplayName');
+        });
+      } else {
+        // Fallback to provided name or service name
+        setState(() {
+          _providerDisplayName = widget.providerName ?? widget.service.displayProviderName;
+          print('⚠️ Using fallback provider name: $_providerDisplayName');
+        });
+      }
+    } catch (error) {
+      print('❌ Error loading provider: $error');
+      setState(() {
+        _providerDisplayName = widget.providerName ?? widget.service.displayProviderName;
+      });
+    } finally {
+      setState(() => _isLoadingProvider = false);
+    }
+  }
 
   Future<void> _confirmBooking() async {
     // Extract time slot data
@@ -69,6 +121,7 @@ class _SkipPaymentConfirmationScreenState
       print('📋 Creating booking without payment...');
       print('   - Service ID: ${widget.service.id}');
       print('   - Provider ID: $providerId');
+      print('   - Provider Name: $_providerDisplayName');
       print('   - Date: ${widget.bookingDate}');
       print('   - Time: $startTime - $endTime');
       print('   - Amount: ${widget.totalAmount}');
@@ -153,7 +206,13 @@ class _SkipPaymentConfirmationScreenState
             ),
             const SizedBox(height: 16),
             _buildSummaryItem('Service', widget.service.name),
-            _buildSummaryItem('Provider', widget.service.displayProviderName),
+            
+            // Provider Info with loading state
+            if (_isLoadingProvider)
+              _buildSummaryItem('Provider', 'Loading...')
+            else
+              _buildSummaryItem('Provider', _providerDisplayName ?? widget.service.displayProviderName),
+            
             _buildSummaryItem('Date', widget.bookingDate),
             _buildSummaryItem('Time', timeRange),
             _buildSummaryItem(
@@ -163,6 +222,56 @@ class _SkipPaymentConfirmationScreenState
             ),
             if (widget.notes != null && widget.notes!.isNotEmpty)
               _buildSummaryItem('Notes', widget.notes!),
+            
+            // Provider contact info if available
+            if (!_isLoadingProvider && _provider != null)
+              Column(
+                children: [
+                  const SizedBox(height: 12),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Provider Contact',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (_provider!.phonenumber.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Icon(Icons.phone, size: 16, color: Colors.grey[600]),
+                          const SizedBox(width: 8),
+                          Text(
+                            _provider!.phonenumber,
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (_provider!.email.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Icon(Icons.email, size: 16, color: Colors.grey[600]),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _provider!.email,
+                              style: const TextStyle(fontSize: 14),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            
             const Divider(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

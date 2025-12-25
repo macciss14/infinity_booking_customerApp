@@ -1,8 +1,10 @@
-// lib/screens/booking/booking_screen.dart - OPTIMIZED VERSION
+// lib/screens/booking/booking_screen.dart - COMPLETE FIXED VERSION
 import 'package:flutter/material.dart';
 import '../../services/service_service.dart';
 import '../../services/booking_service.dart';
+import '../../services/provider_service.dart';
 import '../../models/service_model.dart';
+import '../../models/provider_model.dart';
 import '../../widgets/time_slots_display.dart';
 import '../../utils/constants.dart';
 import '../../config/route_helper.dart';
@@ -10,14 +12,14 @@ import '../../utils/time_slots_utils.dart';
 
 class BookingScreen extends StatefulWidget {
   final String serviceId;
-  final String? providerId; // ✅ Critical: Real PID from ServiceDetailScreen
-  final Map<String, dynamic>? providerData; // ✅ Optional: Complete provider data
+  final String? providerId;
+  final Map<String, dynamic>? providerData;
 
   const BookingScreen({
     super.key,
     required this.serviceId,
-    this.providerId, // ✅ Accept the provider PID
-    this.providerData, // ✅ Accept complete provider data
+    this.providerId,
+    this.providerData,
   });
 
   @override
@@ -27,13 +29,18 @@ class BookingScreen extends StatefulWidget {
 class _BookingScreenState extends State<BookingScreen> {
   final ServiceService _serviceService = ServiceService();
   final BookingService _bookingService = BookingService();
+  final ProviderService _providerService = ProviderService();
+  
   late Future<ServiceModel> _serviceFuture;
   late Future<List<dynamic>> _bookingsFuture;
+  
   final TextEditingController _notesController = TextEditingController();
   Map<String, dynamic>? _selectedSlot;
   bool _bookingInProgress = false;
   bool _isLoading = true;
+  bool _isLoadingProvider = true;
   String? _errorMessage;
+  ProviderModel? _provider;
 
   @override
   void initState() {
@@ -54,11 +61,15 @@ class _BookingScreenState extends State<BookingScreen> {
 
     setState(() {
       _isLoading = true;
+      _isLoadingProvider = true;
       _errorMessage = null;
     });
 
     _serviceFuture = _serviceService.getServiceById(widget.serviceId);
     _bookingsFuture = _bookingService.getUserBookings();
+    
+    // Load provider details asynchronously
+    _loadProviderDetails();
 
     _serviceFuture.then((service) {
       print('✅ Service loaded: ${service.name}');
@@ -94,6 +105,89 @@ class _BookingScreenState extends State<BookingScreen> {
         _isLoading = false;
       });
     });
+  }
+
+  Future<void> _loadProviderDetails() async {
+    if (widget.providerId == null || widget.providerId!.isEmpty) {
+      print('⚠️ No provider ID to fetch details');
+      setState(() => _isLoadingProvider = false);
+      return;
+    }
+
+    try {
+      print('🔄 Fetching provider details for ID: ${widget.providerId}');
+      
+      // Try to fetch provider details
+      final provider = await _providerService.getProviderSmart(widget.providerId!);
+      
+      if (provider != null) {
+        print('✅ Successfully loaded provider: ${provider.fullname}');
+        print('   - Phone: ${provider.phonenumber}');
+        print('   - Email: ${provider.email}');
+        
+        setState(() {
+          _provider = provider;
+        });
+      } else {
+        print('⚠️ Could not load provider details for ID: ${widget.providerId}');
+        // Try to get from service if provider service fails
+        await _tryGetProviderFromService();
+      }
+    } catch (error) {
+      print('❌ Error loading provider details: $error');
+      // Fallback: try to get from service
+      await _tryGetProviderFromService();
+    } finally {
+      setState(() => _isLoadingProvider = false);
+    }
+  }
+
+  Future<void> _tryGetProviderFromService() async {
+    try {
+      final service = await _serviceFuture;
+      
+      if (service.provider != null && service.provider is Map<String, dynamic>) {
+        final providerData = service.provider as Map<String, dynamic>;
+        
+        // Create a temporary provider from service data
+        _provider = ProviderModel(
+          id: providerData['_id']?.toString() ?? '',
+          pid: providerData['pid']?.toString() ?? widget.providerId ?? '',
+          fullname: providerData['fullname']?.toString() ?? 
+                   service.providerName ?? 
+                   'Unknown Provider',
+          email: providerData['email']?.toString() ?? '',
+          phonenumber: providerData['phonenumber']?.toString() ?? '',
+          profilePhoto: providerData['profilePhoto']?.toString(),
+          rating: providerData['rating'] != null 
+              ? (providerData['rating'] is num 
+                  ? providerData['rating'].toDouble() 
+                  : double.tryParse(providerData['rating'].toString()) ?? 0.0)
+              : 0.0,
+          reviewCount: _parseInt(providerData['reviewCount']),
+          totalBookings: _parseInt(providerData['totalBookings']),
+          isVerified: providerData['isVerified'] == true,
+        );
+        
+        print('✅ Extracted provider from service data: ${_provider!.fullname}');
+      }
+    } catch (error) {
+      print('❌ Error extracting provider from service: $error');
+    }
+  }
+
+  int _parseInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) {
+      try {
+        return int.parse(value.replaceAll(',', ''));
+      } catch (_) {
+        return 0;
+      }
+    }
+    return 0;
   }
 
   void _handleSlotSelection(Map<String, dynamic>? slot) {
@@ -143,7 +237,7 @@ class _BookingScreenState extends State<BookingScreen> {
       print('   - Date: $bookingDate');
       print('   - Total: $totalAmount ETB');
       
-      // ✅ FIXED: Pass providerId to PaymentMethodScreen
+      // Navigate to payment screen
       RouteHelper.goToPaymentMethod(
         context,
         service: service,
@@ -151,7 +245,7 @@ class _BookingScreenState extends State<BookingScreen> {
         totalAmount: totalAmount,
         bookingDate: bookingDate,
         notes: _notesController.text.trim(),
-        providerId: effectiveProviderId, // ✅ Critical for fixing 400 error
+        providerId: effectiveProviderId,
       );
     } catch (error) {
       print('❌ Error proceeding to payment: $error');
@@ -198,7 +292,7 @@ class _BookingScreenState extends State<BookingScreen> {
       print('   - Date: $bookingDate');
       print('   - Total: $totalAmount ETB');
       
-      // ✅ FIXED: Pass providerId to SkipPaymentConfirmationScreen
+      // Navigate to skip payment confirmation
       RouteHelper.goToSkipPayment(
         context,
         service: service,
@@ -206,7 +300,7 @@ class _BookingScreenState extends State<BookingScreen> {
         totalAmount: totalAmount,
         bookingDate: bookingDate,
         notes: _notesController.text.trim(),
-        providerId: effectiveProviderId, // ✅ Critical for fixing 400 error
+        providerId: effectiveProviderId,
       );
     } catch (error) {
       print('❌ Error skipping payment: $error');
@@ -237,41 +331,97 @@ class _BookingScreenState extends State<BookingScreen> {
     return formatted;
   }
 
-  Widget _buildProviderInfo(ServiceModel service) {
-    final providerName = service.displayProviderName;
-    final isVerified = service.isProviderVerified;
-    final providerRating = service.providerRating;
+  // Get provider name for display
+  String get _providerDisplayName {
+    if (_provider != null) {
+      return _provider!.fullname;
+    }
+    
+    // If provider couldn't be loaded, try to get from service
+    if (widget.providerData != null && widget.providerData!['fullname'] != null) {
+      return widget.providerData!['fullname'];
+    }
+    
+    return 'Service Provider';
+  }
 
+  // Get provider rating for display
+  double? get _providerRating {
+    if (_provider != null && _provider!.rating != null && _provider!.rating! > 0) {
+      return _provider!.rating;
+    }
+    return null;
+  }
+
+  // Check if provider is verified
+  bool get _isProviderVerified {
+    if (_provider != null) return _provider!.isVerified;
+    return false;
+  }
+
+  // Get provider initials
+  String get _providerInitials {
+    if (_provider != null) {
+      return _provider!.initials;
+    }
+    
+    final name = _providerDisplayName;
+    if (name.isEmpty || name == 'Unknown Provider') return 'P';
+    
+    final parts = name.trim().split(' ').where((part) => part.isNotEmpty).toList();
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    if (name.length >= 2) return name.substring(0, 2).toUpperCase();
+    return name.isNotEmpty ? name[0].toUpperCase() : 'P';
+  }
+
+  Widget _buildProviderInfo() {
     return Row(
       children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Center(
-            child: Text(
-              service.providerInitials,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primary,
+        // Profile Photo or Avatar
+        if (_provider?.profilePhoto != null && _provider!.profilePhoto!.isNotEmpty)
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              image: DecorationImage(
+                image: NetworkImage(_provider!.profilePhoto!),
+                fit: BoxFit.cover,
+              ),
+            ),
+          )
+        else
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Center(
+              child: Text(
+                _providerInitials,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
               ),
             ),
           ),
-        ),
+        
         const SizedBox(width: 12),
+        
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Provider Name Row
               Row(
                 children: [
                   Expanded(
                     child: Text(
-                      providerName,
+                      _providerDisplayName,
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -280,7 +430,9 @@ class _BookingScreenState extends State<BookingScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (isVerified)
+                  
+                  // Verification Badge
+                  if (_isProviderVerified)
                     Container(
                       margin: const EdgeInsets.only(left: 8),
                       padding: const EdgeInsets.symmetric(
@@ -290,6 +442,7 @@ class _BookingScreenState extends State<BookingScreen> {
                       decoration: BoxDecoration(
                         color: Colors.blue[50],
                         borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: Colors.blue.withOpacity(0.3)),
                       ),
                       child: Row(
                         children: [
@@ -312,27 +465,103 @@ class _BookingScreenState extends State<BookingScreen> {
                     ),
                 ],
               ),
-              if (providerRating != null && providerRating > 0)
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.star,
-                      size: 12,
-                      color: Colors.amber,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      providerRating.toStringAsFixed(1),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
+              
+              // Rating if available
+              if (_providerRating != null && _providerRating! > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.star,
+                        size: 12,
+                        color: Colors.amber,
                       ),
-                    ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _providerRating!.toStringAsFixed(1),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '(${_provider?.reviewCount ?? 0} reviews)',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              
+              // Contact Info (if available and not loading)
+              if (!_isLoadingProvider && _provider != null)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 4),
+                    // Phone if available
+                    if (_provider!.phonenumber.isNotEmpty)
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.phone,
+                            size: 12,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _provider!.phonenumber,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    
+                    // Email if available
+                    if (_provider!.email.isNotEmpty)
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.email,
+                            size: 12,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              _provider!.email,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                   ],
                 ),
             ],
           ),
         ),
+        
+        // Loading indicator for provider
+        if (_isLoadingProvider)
+          const Padding(
+            padding: EdgeInsets.only(left: 8),
+            child: SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
       ],
     );
   }
@@ -739,8 +968,30 @@ class _BookingScreenState extends State<BookingScreen> {
                       ),
                       const SizedBox(height: 12),
                       
-                      // Provider Info
-                      _buildProviderInfo(service),
+                      // Provider Info Section with loading state
+                      if (_isLoadingProvider)
+                        const Row(
+                          children: [
+                            SizedBox(
+                              width: 40,
+                              height: 40,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Loading provider details...',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      else
+                        _buildProviderInfo(),
+                      
                       const SizedBox(height: 16),
                       
                       // Pricing Information

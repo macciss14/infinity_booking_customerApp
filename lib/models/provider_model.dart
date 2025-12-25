@@ -5,8 +5,8 @@ class ProviderModel {
   final String pid; // ✅ Only real PID (PROV-xxx)
   final String fullname;
   final String email;
-  final String phone;
-  final String? avatar;
+  final String phonenumber; // ✅ Changed from 'phone' to 'phonenumber'
+  final String? profilePhoto; // ✅ Changed from 'avatar' to 'profilePhoto'
   final double? rating;
   final int? reviewCount;
   final int? totalBookings;
@@ -28,14 +28,15 @@ class ProviderModel {
   final int? responseTimeHours;
   final bool? isOnline;
   final DateTime? lastActive;
+  final String? location; // ✅ Added location field
 
   ProviderModel({
     required this.id,
     required this.pid,
     required this.fullname,
     required this.email,
-    required this.phone,
-    this.avatar,
+    required this.phonenumber, // ✅ Updated
+    this.profilePhoto, // ✅ Updated
     this.rating,
     this.reviewCount,
     this.totalBookings,
@@ -57,6 +58,7 @@ class ProviderModel {
     this.responseTimeHours,
     this.isOnline,
     this.lastActive,
+    this.location, // ✅ Added
   });
 
   factory ProviderModel.fromJson(Map<String, dynamic> json) {
@@ -66,11 +68,14 @@ class ProviderModel {
       fullname: json['fullname']?.toString() ??
           json['name']?.toString() ??
           json['businessName']?.toString() ??
-          'Unknown Provider', // ✅ Never empty
+          'Unknown Provider',
       email: json['email']?.toString() ?? '',
-      phone: json['phone']?.toString() ?? '',
-      avatar: json['avatar']?.toString() ??
+      phonenumber: json['phonenumber']?.toString() ?? // ✅ Updated
+          json['phoneNumber']?.toString() ?? // Check camelCase too
+          json['phone']?.toString() ?? '', // Fallback
+      profilePhoto: json['profilePhoto']?.toString() ?? // ✅ Updated
           json['profileImage']?.toString() ??
+          json['avatar']?.toString() ??
           json['profilePicture']?.toString(),
       rating: json['rating'] != null
           ? (json['rating'] is num
@@ -95,6 +100,7 @@ class ProviderModel {
       address: json['address']?.toString(),
       city: json['city']?.toString(),
       country: json['country']?.toString(),
+      location: json['location']?.toString(), // ✅ Added
       languages: json['languages'] is List
           ? List<String>.from(json['languages'].map((x) => x.toString()))
           : null,
@@ -118,8 +124,8 @@ class ProviderModel {
       'pid': pid,
       'fullname': fullname,
       'email': email,
-      'phone': phone,
-      'avatar': avatar,
+      'phonenumber': phonenumber, // ✅ Updated
+      'profilePhoto': profilePhoto, // ✅ Updated
       'rating': rating,
       'reviewCount': reviewCount,
       'totalBookings': totalBookings,
@@ -135,6 +141,7 @@ class ProviderModel {
       'address': address,
       'city': city,
       'country': country,
+      'location': location, // ✅ Added
       'languages': languages,
       'specialties': specialties,
       'responseRate': responseRate,
@@ -160,7 +167,7 @@ class ProviderModel {
 
   String get contactInfo {
     final contacts = <String>[];
-    if (phone.isNotEmpty) contacts.add(phone);
+    if (phonenumber.isNotEmpty) contacts.add(phonenumber); // ✅ Updated
     if (email.isNotEmpty) contacts.add(email);
     return contacts.join(' • ');
   }
@@ -198,7 +205,10 @@ class ProviderModel {
   }
 
   bool get hasCompleteProfile =>
-      fullname.isNotEmpty && email.isNotEmpty && phone.isNotEmpty && (avatar?.isNotEmpty == true);
+      fullname.isNotEmpty && 
+      email.isNotEmpty && 
+      phonenumber.isNotEmpty && // ✅ Updated
+      (profilePhoto?.isNotEmpty == true); // ✅ Updated
 
   String get verificationBadgeText {
     if (isVerified) return 'Verified';
@@ -212,6 +222,16 @@ class ProviderModel {
     if (totalBookings != null && totalBookings! >= 10) return '#3b82f6';
     if (rating != null && rating! >= 4.0) return '#f59e0b';
     return '#6b7280';
+  }
+
+  // Get full location string
+  String get fullLocation {
+    final parts = <String>[];
+    if (address?.isNotEmpty == true) parts.add(address!);
+    if (city?.isNotEmpty == true) parts.add(city!);
+    if (country?.isNotEmpty == true) parts.add(country!);
+    if (location?.isNotEmpty == true && parts.isEmpty) parts.add(location!);
+    return parts.isNotEmpty ? parts.join(', ') : 'Location not specified';
   }
 
   static int _parseInt(dynamic value) {
@@ -251,8 +271,8 @@ class ProviderModel {
     String? pid,
     String? fullname,
     String? email,
-    String? phone,
-    String? avatar,
+    String? phonenumber, // ✅ Updated
+    String? profilePhoto, // ✅ Updated
     double? rating,
     int? reviewCount,
     int? totalBookings,
@@ -268,6 +288,7 @@ class ProviderModel {
     String? address,
     String? city,
     String? country,
+    String? location, // ✅ Added
     List<String>? languages,
     List<String>? specialties,
     double? responseRate,
@@ -280,8 +301,8 @@ class ProviderModel {
       pid: pid ?? this.pid,
       fullname: fullname ?? this.fullname,
       email: email ?? this.email,
-      phone: phone ?? this.phone,
-      avatar: avatar ?? this.avatar,
+      phonenumber: phonenumber ?? this.phonenumber, // ✅ Updated
+      profilePhoto: profilePhoto ?? this.profilePhoto, // ✅ Updated
       rating: rating ?? this.rating,
       reviewCount: reviewCount ?? this.reviewCount,
       totalBookings: totalBookings ?? this.totalBookings,
@@ -297,6 +318,7 @@ class ProviderModel {
       address: address ?? this.address,
       city: city ?? this.city,
       country: country ?? this.country,
+      location: location ?? this.location, // ✅ Added
       languages: languages ?? this.languages,
       specialties: specialties ?? this.specialties,
       responseRate: responseRate ?? this.responseRate,

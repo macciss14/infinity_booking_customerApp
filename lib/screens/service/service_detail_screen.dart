@@ -1,10 +1,11 @@
-// lib/screens/service/service_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/service_model.dart';
 import '../../models/review_model.dart';
+import '../../models/provider_model.dart';
 import '../../services/service_service.dart';
 import '../../services/review_service.dart';
+import '../../services/provider_service.dart';
 import '../../utils/constants.dart';
 import '../../config/route_helper.dart';
 
@@ -25,14 +26,17 @@ class ServiceDetailScreen extends StatefulWidget {
 class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
   final ServiceService _serviceService = ServiceService();
   final ReviewService _reviewService = ReviewService();
+  final ProviderService _providerService = ProviderService();
 
   late Future<List<ServiceModel>> _allServicesFuture;
   late Future<List<ReviewModel>> _reviewsFuture;
 
   bool _isLoading = true;
+  bool _isLoadingProvider = false;
   bool _hasError = false;
   String _errorMessage = '';
   ServiceModel? _loadedService;
+  ProviderModel? _provider;
   String? _providerPhone;
   String? _providerProfilePhoto;
 
@@ -48,6 +52,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
       _isLoading = true;
       _hasError = false;
       _loadedService = null;
+      _provider = null;
       _providerPhone = null;
       _providerProfilePhoto = null;
     });
@@ -62,9 +67,9 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
       ServiceModel? foundService;
 
       // First, check if we already have a service object passed in
-      if (widget.service != null && 
-          (widget.service!.id == widget.serviceId || 
-           widget.service!.serviceId == widget.serviceId)) {
+      if (widget.service != null &&
+          (widget.service!.id == widget.serviceId ||
+              widget.service!.serviceId == widget.serviceId)) {
         foundService = widget.service!;
         print('✅ Using passed service object: ${foundService.name}');
       } else {
@@ -84,9 +89,8 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
         _showError('Service not found');
       } else {
         _loadedService = foundService;
-        // Extract provider details
-        _extractProviderDetails(foundService);
-        setState(() => _isLoading = false);
+        // Load provider details from provider service
+        _loadProviderDetails(foundService);
       }
     }).catchError((error) {
       print('❌ Error loading services: $error');
@@ -94,108 +98,135 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
     });
   }
 
-  void _extractProviderDetails(ServiceModel service) {
-    print('🔍 Extracting provider details...');
+  Future<void> _loadProviderDetails(ServiceModel service) async {
+    print('🔍 Loading provider details...');
     print('🔍 Provider PID from service: ${service.providerPid}');
     print('🔍 Provider ID from service: ${service.providerId}');
-    print('🔍 Provider object from service: ${service.provider}');
 
-    // 1. First try to get phone from service.providerPhone
-    if (service.providerPhone != null && service.providerPhone!.isNotEmpty) {
-      _providerPhone = service.providerPhone;
-      print('✅ Got phone from service.providerPhone: $_providerPhone');
+    setState(() => _isLoadingProvider = true);
+
+    try {
+      // Try to fetch provider using providerPid first (PROV-xxx format)
+      if (service.providerPid != null &&
+          service.providerPid!.isNotEmpty &&
+          service.providerPid!.startsWith('PROV-')) {
+        print('🔄 Fetching provider by PID: ${service.providerPid}');
+        final provider =
+            await _providerService.getProviderByPid(service.providerPid!);
+        _provider = provider;
+
+        // Extract details from provider model
+        _providerPhone = provider.phonenumber;
+        _providerProfilePhoto = provider.profilePhoto;
+
+        print('✅ Successfully loaded provider by PID: ${provider.fullname}');
+        print('   - Phone: $_providerPhone');
+        print('   - Profile Photo: $_providerProfilePhoto');
+      }
+      // Fallback: Try to fetch by provider ID
+      else if (service.providerId != null && service.providerId!.isNotEmpty) {
+        print('🔄 Fetching provider by ID: ${service.providerId}');
+
+        // Check if it's a PID format or MongoDB ID
+        if (service.providerId!.startsWith('PROV-')) {
+          final provider =
+              await _providerService.getProviderByPid(service.providerId!);
+          _provider = provider;
+          _providerPhone = provider.phonenumber;
+          _providerProfilePhoto = provider.profilePhoto;
+          print(
+              '✅ Successfully loaded provider by ID (PID format): ${provider.fullname}');
+        } else {
+          // Assume it's a MongoDB ID
+          final provider =
+              await _providerService.getProviderById(service.providerId!);
+          _provider = provider;
+          _providerPhone = provider.phonenumber;
+          _providerProfilePhoto = provider.profilePhoto;
+          print('✅ Successfully loaded provider by ID: ${provider.fullname}');
+        }
+
+        print('   - Phone: $_providerPhone');
+        print('   - Profile Photo: $_providerProfilePhoto');
+      }
+      // Fallback: Extract from service provider object if exists
+      else if (service.provider != null && service.provider is Map) {
+        print('⚠️ No provider PID/ID, extracting from service provider object');
+        _extractProviderFromServiceObject(service);
+      } else {
+        print('⚠️ No provider information available');
+      }
+    } catch (error) {
+      print('❌ Error loading provider details: $error');
+      // Fallback to extracting from service object
+      if (service.provider != null && service.provider is Map) {
+        _extractProviderFromServiceObject(service);
+      }
+    } finally {
+      setState(() {
+        _isLoadingProvider = false;
+        _isLoading = false;
+      });
     }
+  }
 
-    // 2. Try to get phone and PID from provider object
-    if (service.provider != null && service.provider is Map) {
+  void _extractProviderFromServiceObject(ServiceModel service) {
+    try {
+      final providerMap = service.provider as Map<String, dynamic>;
+      print('📋 Provider object keys: ${providerMap.keys}');
+
+      // Extract using correct field names
+      final fullname = providerMap['fullname']?.toString();
+      final phonenumber = providerMap['phonenumber']?.toString();
+      final profilePhoto = providerMap['profilePhoto']?.toString();
+      final email = providerMap['email']?.toString();
+      final address = providerMap['address']?.toString();
+
+      // Create a temporary provider model
+      _provider = ProviderModel(
+        id: providerMap['_id']?.toString() ??
+            providerMap['id']?.toString() ??
+            '',
+        pid: providerMap['pid']?.toString() ?? service.providerPid ?? '',
+        fullname: fullname ?? service.providerName ?? 'Unknown Provider',
+        email: email ?? service.providerEmail ?? '',
+        phonenumber: phonenumber ?? '',
+        profilePhoto: profilePhoto,
+        rating: providerMap['rating'] != null
+            ? (providerMap['rating'] is num
+                ? providerMap['rating'].toDouble()
+                : double.tryParse(providerMap['rating'].toString()) ?? 0.0)
+            : null,
+        reviewCount: _parseInt(providerMap['reviewCount']),
+        totalBookings: _parseInt(providerMap['totalBookings']),
+        isVerified: providerMap['isVerified'] == true,
+        address: address,
+      );
+
+      _providerPhone = phonenumber;
+      _providerProfilePhoto = profilePhoto;
+
+      print('✅ Extracted provider from service object:');
+      print('   - Full Name: ${_provider?.fullname}');
+      print('   - Phone: $_providerPhone');
+      print('   - Profile Photo: $_providerProfilePhoto');
+    } catch (e) {
+      print('⚠️ Error extracting provider from service object: $e');
+    }
+  }
+
+  int _parseInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) {
       try {
-        final providerMap = service.provider as Map<String, dynamic>;
-        
-        // Check for PID in provider object - THIS IS CRITICAL!
-        if (service.providerPid == null || service.providerPid!.isEmpty) {
-          // Try to get PID from provider object
-          final pidFromProvider = providerMap['pid']?.toString().trim();
-          if (pidFromProvider != null && pidFromProvider.isNotEmpty) {
-            print('✅ Found PID in provider object: $pidFromProvider');
-            // Note: We can't update service.providerPid as it's final, 
-            // but we can log it for debugging
-          }
-        }
-
-        // Try different phone field names
-        if ((_providerPhone == null || _providerPhone!.isEmpty)) {
-          _providerPhone = providerMap['phone']?.toString() ??
-              providerMap['phoneNumber']?.toString() ??
-              providerMap['mobile']?.toString() ??
-              providerMap['contactNumber']?.toString();
-
-          if (_providerPhone != null && _providerPhone!.isNotEmpty) {
-            print('✅ Got phone from provider object: $_providerPhone');
-          }
-        }
-
-        // Get profile photo from provider object
-        _providerProfilePhoto = providerMap['profilePhoto']?.toString() ??
-            providerMap['avatar']?.toString() ??
-            providerMap['image']?.toString() ??
-            providerMap['photo']?.toString() ??
-            providerMap['profileImage']?.toString();
-
-        if (_providerProfilePhoto != null && _providerProfilePhoto!.isNotEmpty) {
-          print('✅ Got profile photo from provider object: $_providerProfilePhoto');
-        }
-      } catch (e) {
-        print('⚠️ Error parsing provider object: $e');
+        return int.parse(value.replaceAll(',', ''));
+      } catch (_) {
+        return 0;
       }
     }
-
-    // 3. If still no phone, check service JSON for any phone-related fields
-    if (_providerPhone == null || _providerPhone!.isEmpty) {
-      try {
-        final serviceJson = service.toJson();
-        for (var key in serviceJson.keys) {
-          final keyStr = key.toString().toLowerCase();
-          if ((keyStr.contains('phone') ||
-                  keyStr.contains('mobile') ||
-                  keyStr.contains('contact')) &&
-              serviceJson[key] != null &&
-              serviceJson[key]!.toString().isNotEmpty) {
-            _providerPhone = serviceJson[key]!.toString();
-            print('✅ Found phone in service field "$key": $_providerPhone');
-            break;
-          }
-        }
-      } catch (e) {
-        print('⚠️ Error checking service JSON for phone: $e');
-      }
-    }
-
-    // 4. If still no profile photo, check service JSON for any image fields
-    if (_providerProfilePhoto == null || _providerProfilePhoto!.isEmpty) {
-      try {
-        final serviceJson = service.toJson();
-        for (var key in serviceJson.keys) {
-          final keyStr = key.toString().toLowerCase();
-          if ((keyStr.contains('profile') ||
-                  keyStr.contains('avatar') ||
-                  keyStr.contains('image')) &&
-              serviceJson[key] != null &&
-              serviceJson[key]!.toString().isNotEmpty) {
-            _providerProfilePhoto = serviceJson[key]!.toString();
-            print('✅ Found profile photo in service field "$key": $_providerProfilePhoto');
-            break;
-          }
-        }
-      } catch (e) {
-        print('⚠️ Error checking service JSON for profile photo: $e');
-      }
-    }
-
-    print('📊 Final extracted details:');
-    print('   - Phone: $_providerPhone');
-    print('   - Profile Photo: $_providerProfilePhoto');
-    print('   - Provider PID: ${service.providerPid}');
-    print('   - Provider ID: ${service.providerId}');
+    return 0;
   }
 
   void _showError(String message) {
@@ -220,30 +251,24 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
 
     // CRITICAL: Use providerPid first, then providerId as fallback
     String? bookingProviderId;
-    
+
     // First priority: providerPid (should be PROV-xxx)
-    if (_loadedService!.providerPid != null && 
+    if (_loadedService!.providerPid != null &&
         _loadedService!.providerPid!.isNotEmpty) {
       bookingProviderId = _loadedService!.providerPid!;
       print('✅ Using providerPid for booking: $bookingProviderId');
-      print('✅ ProviderPid starts with PROV-: ${bookingProviderId.startsWith('PROV-')}');
-    } 
-    // Second priority: providerId (might be PROV-xxx or MongoDB ID)
-    else if (_loadedService!.providerId != null && 
-             _loadedService!.providerId!.isNotEmpty) {
+    }
+    // Second priority: providerId
+    else if (_loadedService!.providerId != null &&
+        _loadedService!.providerId!.isNotEmpty) {
       bookingProviderId = _loadedService!.providerId!;
       print('⚠️ Using providerId for booking (fallback): $bookingProviderId');
-      print('⚠️ ProviderId starts with PROV-: ${bookingProviderId.startsWith('PROV-')}');
-      
-      // If it's a MongoDB ID (24 chars), we have a problem
-      if (bookingProviderId.length == 24) {
-        _showBookingError(
-          'Provider ID format issue detected. '
-          'Please contact support for assistance.'
-        );
-        return;
-      }
-    } 
+    }
+    // Third priority: provider PID from provider object
+    else if (_provider?.pid != null && _provider!.pid.isNotEmpty) {
+      bookingProviderId = _provider!.pid;
+      print('⚠️ Using provider PID from provider object: $bookingProviderId');
+    }
     // No provider ID found
     else {
       _showBookingError('Provider information not available. Cannot book.');
@@ -253,8 +278,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
     print('📋 Booking details:');
     print('   - Service ID: ${widget.serviceId}');
     print('   - Provider ID for booking: $bookingProviderId');
-    print('   - Provider ID format: ${bookingProviderId.startsWith('PROV-') ? "PROV- format" : "Other format"}');
-    
+
     RouteHelper.goToBookingWithProvider(
       context: context,
       serviceId: widget.serviceId,
@@ -284,7 +308,8 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
         RouteHelper.goToWriteReview(
           context,
           serviceId: widget.serviceId,
-          serviceName: _loadedService?.name ?? widget.service?.name ?? 'Unknown Service',
+          serviceName:
+              _loadedService?.name ?? widget.service?.name ?? 'Unknown Service',
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -316,29 +341,6 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
   String _formatDate(DateTime? date) {
     if (date == null) return 'Unknown';
     return DateFormat('dd/MM/yyyy HH:mm').format(date);
-  }
-
-  Color _getAvailabilityColor(ServiceModel service) {
-    final slots = service.getAvailableSlotsCount();
-    if (slots == 0) return Colors.red;
-    if (slots < 3) return Colors.orange;
-    return Colors.green;
-  }
-
-  Color _getStatusColor(String? status) {
-    if (status == null) return Colors.grey;
-    switch (status.toLowerCase()) {
-      case 'published':
-      case 'active':
-        return Colors.green;
-      case 'draft':
-        return Colors.orange;
-      case 'archived':
-      case 'suspended':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
   }
 
   @override
@@ -411,7 +413,8 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
               onPressed: _retryLoading,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
               ),
               child: const Text(
                 'Try Again',
@@ -516,15 +519,6 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
   }
 
   Widget _buildProviderCard(ServiceModel service) {
-    final providerName = service.displayProviderName;
-    final providerEmail = service.providerEmail;
-    final providerPhone = _providerPhone;
-    final profilePhoto = _providerProfilePhoto;
-    final isVerified = service.isProviderVerified;
-    final rating = service.providerRating;
-    final providerPid = service.providerPid;
-    final providerId = service.providerId;
-
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
@@ -546,109 +540,87 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
             ),
             const SizedBox(height: 12),
 
-            // Provider Header with Profile Photo and Name
-            Row(
-              children: [
-                // Profile Photo or Avatar with Initials
-                if (profilePhoto != null && profilePhoto.isNotEmpty)
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(30),
-                      image: DecorationImage(
-                        image: NetworkImage(profilePhoto),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  )
-                else
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: Center(
-                      child: Text(
-                        service.providerInitials,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
+            // Show loading indicator while loading provider
+            if (_isLoadingProvider)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (_provider != null)
+              _buildProviderInfo(service)
+            else
+              _buildProviderFallback(service),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProviderInfo(ServiceModel service) {
+    final provider = _provider!;
+    final phone = _providerPhone ?? provider.phonenumber;
+    final profilePhoto = _providerProfilePhoto ?? provider.profilePhoto;
+    final providerName = provider.fullname;
+    final providerEmail = provider.email;
+    final isVerified = provider.isVerified;
+    final rating = provider.rating;
+    final providerPid = provider.pid;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Provider Header with Profile Photo and Name
+        Row(
+          children: [
+            // Profile Photo or Avatar with Initials
+            if (profilePhoto != null && profilePhoto.isNotEmpty)
+              _buildProfilePhoto(profilePhoto)
+            else
+              _buildProfileAvatar(providerName),
+            const SizedBox(width: 16),
+
+            // Name and verification badge
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          providerName,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                    ),
-                  ),
-                const SizedBox(width: 16),
-
-                // Name and verification badge
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              providerName,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                      if (isVerified)
+                        Container(
+                          margin: const EdgeInsets.only(left: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            borderRadius: BorderRadius.circular(4),
+                            border:
+                                Border.all(color: Colors.blue.withOpacity(0.3)),
                           ),
-                          if (isVerified)
-                            Container(
-                              margin: const EdgeInsets.only(left: 8),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.blue[50],
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(color: Colors.blue.withOpacity(0.3)),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.verified,
-                                      size: 14, color: Colors.blue),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Verified',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.blue[700],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
-
-                      // Provider rating if available
-                      if (rating != null && rating > 0)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
                           child: Row(
                             children: [
-                              const Icon(Icons.star,
-                                  size: 14, color: Colors.amber),
+                              const Icon(Icons.verified,
+                                  size: 14, color: Colors.blue),
                               const SizedBox(width: 4),
                               Text(
-                                rating.toStringAsFixed(1),
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '(${service.reviewCount ?? 0} reviews)',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
+                                'Verified',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue[700],
                                 ),
                               ),
                             ],
@@ -656,80 +628,219 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                         ),
                     ],
                   ),
-                ),
-              ],
-            ),
 
-            // Provider ID Information (Debug info - can be removed in production)
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.grey[300]!),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Provider ID Info:',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  if (providerPid != null && providerPid.isNotEmpty)
-                    Text(
-                      'PID: $providerPid',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: providerPid.startsWith('PROV-') ? Colors.green : Colors.orange,
-                      ),
-                    ),
-                  if (providerId != null && providerId.isNotEmpty)
-                    Text(
-                      'ID: $providerId',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: providerId.startsWith('PROV-') ? Colors.green : Colors.grey,
+                  // Provider rating if available
+                  if (rating != null && rating > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.star, size: 14, color: Colors.amber),
+                          const SizedBox(width: 4),
+                          Text(
+                            rating.toStringAsFixed(1),
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '(${provider.reviewCount ?? 0} reviews)',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                 ],
               ),
             ),
+          ],
+        ),
 
-            // Contact Details Section
-            if (providerEmail != null || providerPhone != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Divider(),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Contact Information',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
+        // Provider ID Information
+        if (providerPid.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(top: 12),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Provider ID:',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Color.fromARGB(255, 116, 113, 113),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  providerPid,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: providerPid.startsWith('PROV-')
+                        ? Colors.green
+                        : Colors.orange,
+                  ),
+                ),
+              ],
+            ),
+          ),
 
-                    // Email
-                    if (providerEmail != null && providerEmail.isNotEmpty)
-                      _buildContactRow(Icons.email_outlined, providerEmail),
+        // Contact Details Section
+        if (providerEmail.isNotEmpty || (phone?.isNotEmpty == true))
+          Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Divider(),
+                const SizedBox(height: 8),
+                const Text(
+                  'Contact Information',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
 
-                    // Phone
-                    if (providerPhone != null && providerPhone.isNotEmpty)
-                      _buildContactRow(Icons.phone_outlined, providerPhone),
-                  ],
+                // Email
+                if (providerEmail.isNotEmpty)
+                  _buildContactRow(Icons.email_outlined, providerEmail),
+
+                // Phone
+                if (phone != null && phone.isNotEmpty)
+                  _buildContactRow(Icons.phone_outlined, phone),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildProviderFallback(ServiceModel service) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            _buildProfileAvatar(service.displayProviderName),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                service.displayProviderName,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        Container(
+          margin: const EdgeInsets.only(top: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.orange[50],
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.orange.withOpacity(0.3)),
+          ),
+          child: const Text(
+            'Provider details could not be loaded. Contact information may be unavailable.',
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.orange,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProfilePhoto(String photoUrl) {
+    return Container(
+      width: 60,
+      height: 60,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(30),
+        child: Image.network(
+          photoUrl,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              color: AppColors.primary.withOpacity(0.1),
+              child: Center(
+                child: Icon(
+                  Icons.person,
+                  size: 30,
+                  color: AppColors.primary,
                 ),
               ),
-          ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileAvatar(String name) {
+    // Get initials from name
+    String initials = '';
+    final nameParts = name.split(' ');
+    if (nameParts.isNotEmpty) {
+      initials = nameParts[0].isNotEmpty ? nameParts[0][0] : '';
+      if (nameParts.length > 1 && nameParts[1].isNotEmpty) {
+        initials += nameParts[1][0];
+      }
+    }
+
+    return Container(
+      width: 60,
+      height: 60,
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+      ),
+      child: Center(
+        child: Text(
+          initials.isNotEmpty ? initials : 'P',
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
+          ),
         ),
       ),
     );
@@ -755,6 +866,87 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
       ),
     );
   }
+
+  // ... [Keep all other methods the same: _buildPricingCard, _buildDescriptionCard,
+  // _buildPerformanceMetrics, _buildAvailabilityCard, _buildSidebar, etc.]
+
+  Widget _buildServiceDetails(ServiceModel service) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildServiceImage(service),
+          const SizedBox(height: 20),
+          Text(
+            service.name,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildPricingCard(service),
+          const SizedBox(height: 20),
+
+          // Provider Card with fetched provider details
+          _buildProviderCard(service),
+
+          const SizedBox(height: 20),
+          _buildDescriptionCard(service),
+          const SizedBox(height: 20),
+          _buildPerformanceMetrics(service),
+          const SizedBox(height: 20),
+          _buildAvailabilityCard(service),
+          const SizedBox(height: 20),
+          _buildSidebar(service),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _navigateToBooking,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'Book This Service',
+                style: TextStyle(fontSize: 16, color: Colors.white),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: _checkAndNavigateToReview,
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                side: BorderSide(color: AppColors.primary),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(
+                'Write a Review',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  // Add these missing methods to make the code complete:
 
   Widget _buildPricingCard(ServiceModel service) {
     return Card(
@@ -787,7 +979,8 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
               '${service.totalPrice.toStringAsFixed(2)} ${service.priceUnit ?? 'ETB'}',
               isTotal: true,
             ),
-            if (service.pricingNotes != null && service.pricingNotes!.isNotEmpty) ...[
+            if (service.pricingNotes != null &&
+                service.pricingNotes!.isNotEmpty) ...[
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -942,7 +1135,8 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: hasAction ? AppColors.primary.withOpacity(0.1) : Colors.grey[100],
+        color:
+            hasAction ? AppColors.primary.withOpacity(0.1) : Colors.grey[100],
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: hasAction
@@ -1146,6 +1340,29 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
     );
   }
 
+  Color _getAvailabilityColor(ServiceModel service) {
+    final slots = service.getAvailableSlotsCount();
+    if (slots == 0) return Colors.red;
+    if (slots < 3) return Colors.orange;
+    return Colors.green;
+  }
+
+  Color _getStatusColor(String? status) {
+    if (status == null) return Colors.grey;
+    switch (status.toLowerCase()) {
+      case 'published':
+      case 'active':
+        return Colors.green;
+      case 'draft':
+        return Colors.orange;
+      case 'archived':
+      case 'suspended':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
   Widget _buildStatusBadge(String text, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -1189,82 +1406,6 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
               fontWeight: FontWeight.w600,
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildServiceDetails(ServiceModel service) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildServiceImage(service),
-          const SizedBox(height: 20),
-          Text(
-            service.name,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: 8),
-          _buildPricingCard(service),
-          const SizedBox(height: 20),
-
-          // Provider Card with phone and profile photo
-          _buildProviderCard(service),
-
-          const SizedBox(height: 20),
-          _buildDescriptionCard(service),
-          const SizedBox(height: 20),
-          _buildPerformanceMetrics(service),
-          const SizedBox(height: 20),
-          _buildAvailabilityCard(service),
-          const SizedBox(height: 20),
-          _buildSidebar(service),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _navigateToBooking,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text(
-                'Book This Service',
-                style: TextStyle(fontSize: 16, color: Colors.white),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: _checkAndNavigateToReview,
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                side: BorderSide(color: AppColors.primary),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Text(
-                'Write a Review',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: AppColors.primary,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
         ],
       ),
     );

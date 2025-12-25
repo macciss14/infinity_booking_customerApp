@@ -30,16 +30,16 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
-  flutter_launcher_icons: ^0.14.4  # For app icon generation
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
-
   assets:
     - assets/images/icons/
     - assets/images/logos/
 
-flutter_icons:
+# ✅ Correct placement: top-level key
+flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/icons/app_icon.png"  # Your launcher icon
+  image_path: "assets/images/icons/app_icon.png"

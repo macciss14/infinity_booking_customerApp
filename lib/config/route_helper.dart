@@ -1,4 +1,4 @@
-// lib/config/route_helper.dart - COMPLETE VERSION WITH NOTIFICATIONS
+// lib/config/route_helper.dart - COMPLETE FIXED VERSION
 import 'package:flutter/material.dart';
 
 // Auth Screens
@@ -25,6 +25,7 @@ import '../screens/main/profile_screen.dart';
 import '../screens/service/service_list_screen.dart';
 import '../screens/service/service_detail_screen.dart';
 import '../screens/service/reviews_screen.dart';
+import '../screens/service/write_review_screen.dart'; // reviews
 
 // Booking Screens
 import '../screens/booking/booking_screen.dart';
@@ -35,14 +36,12 @@ import '../screens/booking/skip_payment_confirmation_screen.dart';
 // Profile Screens
 import '../screens/profile/edit_profile_screen.dart';
 
+// Notifications Screen
+import '../screens/notifications/notifications_screen.dart';
+
 // Models
 import '../models/booking_model.dart';
 import '../models/service_model.dart';
-
-// ✅ ADD NOTIFICATIONS SCREEN IMPORT
-import '../screens/notifications/notifications_screen.dart';
-//reviews
-import '../screens/service/write_review_screen.dart';
 
 class RouteHelper {
   // Initial/landing routes
@@ -69,6 +68,7 @@ class RouteHelper {
   static const String serviceList = '/service-list';
   static const String serviceDetail = '/service-detail';
   static const String reviews = '/reviews';
+  static const String writeReview = '/write-review';
 
   // Booking flow
   static const String booking = '/booking';
@@ -79,10 +79,9 @@ class RouteHelper {
   // Profile
   static const String editProfile = '/edit-profile';
 
-  // ✅ ADD NOTIFICATIONS ROUTE
+  // Notifications route
   static const String notifications = '/notifications';
-  //reviews route
-  static const String writeReview = '/write-review';
+
   // Route generator
   static Route<dynamic> generateRoute(RouteSettings settings) {
     final args = settings.arguments;
@@ -200,7 +199,8 @@ class RouteHelper {
           );
         }
         return _errorRoute('Service ID required for writing review');
-      // ✅ FIXED: Booking Screen with Provider ID
+
+      // Booking Screen with Provider ID
       case booking:
         if (args is String) {
           return MaterialPageRoute(
@@ -228,7 +228,7 @@ class RouteHelper {
         }
         return _errorRoute('Service ID required for booking');
 
-      // ✅ FIXED: Payment Method Screen
+      // Payment Method Screen - UPDATED WITH providerName
       case paymentMethod:
         if (args is Map<String, dynamic>) {
           final service = args['service'];
@@ -254,12 +254,13 @@ class RouteHelper {
               bookingDate: args['bookingDate'] as String,
               notes: args['notes'] as String?,
               providerId: args['providerId'] as String?,
+              providerName: args['providerName'] as String?, // ADDED THIS
             ),
           );
         }
         return _errorRoute('Payment method screen requires booking data');
 
-      // ✅ FIXED: Skip Payment Confirmation Screen
+      // Skip Payment Confirmation Screen - UPDATED WITH providerName
       case skipPayment:
         if (args is Map<String, dynamic>) {
           final service = args['service'];
@@ -285,6 +286,7 @@ class RouteHelper {
               bookingDate: args['bookingDate'] as String,
               notes: args['notes'] as String?,
               providerId: args['providerId'] as String?,
+              providerName: args['providerName'] as String?, // ADDED THIS
             ),
           );
         }
@@ -322,7 +324,7 @@ class RouteHelper {
       case editProfile:
         return MaterialPageRoute(builder: (_) => const EditProfileScreen());
 
-      // ✅ ADD NOTIFICATIONS SCREEN CASE
+      // Notifications Screen
       case notifications:
         return MaterialPageRoute(builder: (_) => const NotificationsScreen());
 
@@ -551,7 +553,7 @@ class RouteHelper {
     pushNamed(context, booking, arguments: service);
   }
 
-  /// Navigate to payment method selection
+  /// Navigate to payment method selection - UPDATED WITH providerName
   static void goToPaymentMethod(
     BuildContext context, {
     required ServiceModel service,
@@ -560,8 +562,11 @@ class RouteHelper {
     required String bookingDate,
     String? notes,
     String? providerId,
+    String? providerName, // ADDED THIS
   }) {
-    print('💳 Navigating to payment method with provider ID: $providerId');
+    print('💳 Navigating to payment method:');
+    print('   - Provider ID: $providerId');
+    print('   - Provider Name: $providerName');
 
     pushNamed(
       context,
@@ -573,11 +578,12 @@ class RouteHelper {
         'bookingDate': bookingDate,
         'notes': notes,
         'providerId': providerId,
+        'providerName': providerName, // ADDED THIS
       },
     );
   }
 
-  /// Navigate to skip payment confirmation
+  /// Navigate to skip payment confirmation - UPDATED WITH providerName
   static void goToSkipPayment(
     BuildContext context, {
     required ServiceModel service,
@@ -586,8 +592,11 @@ class RouteHelper {
     required String bookingDate,
     String? notes,
     String? providerId,
+    String? providerName, // ADDED THIS
   }) {
-    print('⏭ Navigating to skip payment with provider ID: $providerId');
+    print('⏭ Navigating to skip payment:');
+    print('   - Provider ID: $providerId');
+    print('   - Provider Name: $providerName');
 
     pushNamed(
       context,
@@ -599,6 +608,7 @@ class RouteHelper {
         'bookingDate': bookingDate,
         'notes': notes,
         'providerId': providerId,
+        'providerName': providerName, // ADDED THIS
       },
     );
   }
@@ -684,7 +694,7 @@ class RouteHelper {
     pushNamed(context, profile);
   }
 
-  // ✅ ADD: Navigate to notifications screen
+  /// Navigate to notifications screen
   static void goToNotifications(BuildContext context) {
     pushNamed(context, notifications);
   }
@@ -913,7 +923,7 @@ class RouteHelper {
     );
   }
 
-  // ✅ ADD: Show notification permission dialog
+  /// Show notification permission dialog
   static Future<bool> showNotificationPermissionDialog(
     BuildContext context,
   ) async {
@@ -928,7 +938,7 @@ class RouteHelper {
     );
   }
 
-  // ✅ ADD: Show notification settings dialog
+  /// Show notification settings dialog
   static void showNotificationSettingsDialog(
     BuildContext context,
   ) {
@@ -955,7 +965,7 @@ class RouteHelper {
     );
   }
 
-  // ✅ ADD: Show mark all notifications read dialog
+  /// Show mark all notifications read dialog
   static Future<bool> showMarkAllReadDialog(
     BuildContext context,
   ) async {

@@ -1,6 +1,5 @@
-// lib/screens/service/reviews_screen.dart
+// lib/screens/service/reviews_screen.dart - FIXED VERSION
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../models/review_model.dart';
 import '../../services/review_service.dart';
 import '../../utils/constants.dart';
@@ -168,7 +167,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
           ),
           const SizedBox(height: 30),
           ElevatedButton(
-            onPressed: () => _showAddReviewDialog(),
+            onPressed: () => _navigateToWriteReview(context),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
@@ -305,13 +304,13 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Reviewer info
+                // Reviewer info - FIXED: Use reviewerName property
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        review.getReviewerName(),
+                        review.reviewerName, // FIXED: Changed from getReviewerName()
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 15,
@@ -395,7 +394,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                         ),
                         if (review.respondedAt != null)
                           Text(
-                            review.formattedRespondedAt,
+                            review.formattedResponseDate, // FIXED: Changed from formattedRespondedAt
                             style: TextStyle(
                               fontSize: 11,
                               color: Colors.grey[600],
@@ -494,7 +493,6 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
     }
   }
 
-  // Add this method:
   void _navigateToWriteReview(BuildContext context) {
     RouteHelper.goToWriteReview(
       context,
@@ -503,116 +501,15 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
     );
   }
 
-  Future<void> _showAddReviewDialog() async {
-    double rating = 5.0;
-    final commentController = TextEditingController();
-
-    await showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Write a Review'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Rating
-                const Text('How would you rate this service?'),
-                const SizedBox(height: 8),
-                StatefulBuilder(
-                  builder: (context, setState) {
-                    return Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(5, (index) {
-                        return IconButton(
-                          icon: Icon(
-                            index < rating.round()
-                                ? Icons.star
-                                : Icons.star_border,
-                            color: Colors.amber,
-                            size: 32,
-                          ),
-                          onPressed: () {
-                            setState(() => rating = (index + 1).toDouble());
-                          },
-                        );
-                      }),
-                    );
-                  },
-                ),
-                Text(
-                  '${rating.toStringAsFixed(1)} Stars',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Comment
-                TextField(
-                  controller: commentController,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Your Review',
-                    hintText: 'Share your experience with this service...',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (commentController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please write a review'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                  return;
-                }
-
-                try {
-                  await _reviewService.createReview(
-                    serviceId: widget.serviceId,
-                    rating: rating,
-                    comment: commentController.text.trim(),
-                  );
-
-                  if (mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Review submitted successfully!'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                    _loadReviews();
-                  }
-                } catch (error) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Failed to submit review: $error'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }
-              },
-              child: const Text('Submit Review'),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  // REMOVE or update this dialog - it's not working with the new ReviewService
+  // The dialog tries to call createReview directly but the user needs to go through WriteReviewScreen
+  // to check for booking eligibility first
+  
+  // Future<void> _showAddReviewDialog() async {
+  //   // This dialog doesn't work anymore because createReview requires booking check
+  //   // Users should use WriteReviewScreen instead
+  //   _navigateToWriteReview(context);
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -662,7 +559,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                                 ),
                               ),
                               ElevatedButton.icon(
-                                onPressed: _showAddReviewDialog,
+                                onPressed: () => _navigateToWriteReview(context),
                                 icon: const Icon(Icons.edit, size: 16),
                                 label: const Text('Write a Review'),
                                 style: ElevatedButton.styleFrom(

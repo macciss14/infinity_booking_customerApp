@@ -1,4 +1,4 @@
-// lib/screens/service/write_review_screen.dart
+// lib/screens/service/write_review_screen.dart - FIXED VERSION
 import 'package:flutter/material.dart';
 import '../../services/review_service.dart';
 import '../../services/booking_service.dart';
@@ -8,7 +8,7 @@ import '../../utils/constants.dart';
 class WriteReviewScreen extends StatefulWidget {
   final String serviceId;
   final String? serviceName;
-  final String? bookingId;
+  final String? bookingId; // Optional if we need to find it
 
   const WriteReviewScreen({
     super.key,
@@ -29,38 +29,109 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
   final TextEditingController _commentController = TextEditingController();
   bool _loading = false;
   bool _canReview = true;
+  bool _findingBooking = true;
   BookingModel? _booking;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _checkReviewEligibility();
-    if (widget.bookingId != null) {
-      _loadBookingDetails();
-    }
+    _findOrValidateBooking();
   }
 
-  Future<void> _checkReviewEligibility() async {
+  Future<void> _findOrValidateBooking() async {
     try {
-      final canReview = await _reviewService.canReviewService(widget.serviceId);
-      setState(() => _canReview = canReview);
+      setState(() {
+        _findingBooking = true;
+        _errorMessage = null;
+      });
+
+      print('🔍 Finding booking for service: ${widget.serviceId}');
+
+      // Case 1: If bookingId is provided, validate it
+      if (widget.bookingId != null) {
+        print('📋 Using provided booking ID: ${widget.bookingId}');
+        try {
+          _booking = await _bookingService.getBookingById(widget.bookingId!);
+          if (_booking?.serviceId == widget.serviceId) {
+            print('✅ Provided booking ID is valid');
+            _canReview = true;
+          } else {
+            _errorMessage = 'Invalid booking for this service';
+            _canReview = false;
+          }
+        } catch (e) {
+          print('❌ Error loading provided booking: $e');
+          _errorMessage = 'Could not validate booking';
+          _canReview = false;
+        }
+      } 
+      // Case 2: Find booking from user's bookings
+      else {
+        print('🔍 Searching for user bookings for service: ${widget.serviceId}');
+        final bookings = await _bookingService.getUserBookings();
+        
+        // Find completed/approved bookings for this service
+        final validBookings = bookings.where((booking) {
+          return booking.serviceId == widget.serviceId && 
+                 (booking.status == 'completed' || 
+                  booking.status == 'approved' ||
+                  booking.status == 'delivered' ||
+                  booking.status == 'fulfilled');
+        }).toList();
+        
+        if (validBookings.isNotEmpty) {
+          // Use the most recent booking
+          validBookings.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          _booking = validBookings.first;
+          print('✅ Found booking ID: ${_booking!.id} for service');
+          _canReview = true;
+        } else {
+          _errorMessage = 'No completed booking found for this service';
+          _canReview = false;
+          print('❌ No valid bookings found. Available bookings:');
+          for (var booking in bookings) {
+            print('   - Booking ${booking.id}: service=${booking.serviceId}, status=${booking.status}');
+          }
+        }
+      }
+      
+      // Double-check with backend API
+      if (_canReview) {
+        try {
+          final canReviewApi = await _reviewService.canReviewService(widget.serviceId);
+          if (!canReviewApi) {
+            _errorMessage = 'Cannot review this service yet. Please complete your booking first.';
+            _canReview = false;
+          }
+        } catch (e) {
+          print('⚠️ API review check failed, but proceeding with local check: $e');
+          // Continue with local check if API fails
+        }
+      }
+
     } catch (error) {
       print('❌ Error checking review eligibility: $error');
-    }
-  }
-
-  Future<void> _loadBookingDetails() async {
-    try {
-      if (widget.bookingId != null) {
-        final booking = await _bookingService.getBookingById(widget.bookingId!);
-        setState(() => _booking = booking);
-      }
-    } catch (error) {
-      print('❌ Error loading booking details: $error');
+      _errorMessage = 'Error checking review eligibility: ${error.toString()}';
+      _canReview = false;
+    } finally {
+      setState(() {
+        _findingBooking = false;
+      });
     }
   }
 
   Future<void> _submitReview() async {
+    if (!_canReview || _booking == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_errorMessage ?? 'Cannot submit review'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     if (_rating == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -84,11 +155,16 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
     setState(() => _loading = true);
 
     try {
+      print('📝 Submitting review for service: ${widget.serviceId}');
+      print('📝 Using booking ID: ${_booking!.id}');
+      print('📝 Rating: $_rating');
+      print('📝 Comment: ${_commentController.text.trim()}');
+
       await _reviewService.createReview(
         serviceId: widget.serviceId,
         rating: _rating,
         comment: _commentController.text.trim(),
-        bookingId: widget.bookingId,
+        // bookingId parameter is now handled inside createReview()
       );
 
       if (mounted) {
@@ -108,7 +184,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to submit review: $error'),
+            content: Text('Failed to submit review: ${error.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -128,7 +204,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         actions: [
-          if (_loading)
+          if (_loading || _findingBooking)
             const Padding(
               padding: EdgeInsets.all(16.0),
               child: SizedBox(
@@ -142,34 +218,57 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
             ),
         ],
       ),
-      body: !_canReview
-          ? _buildCannotReviewView()
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Service info
-                  if (widget.serviceName != null || _booking != null)
-                    _buildServiceInfo(),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // Rating section
-                  _buildRatingSection(),
-                  
-                  const SizedBox(height: 30),
-                  
-                  // Review text
-                  _buildReviewTextField(),
-                  
-                  const SizedBox(height: 40),
-                  
-                  // Submit button
-                  _buildSubmitButton(),
-                ],
-              ),
-            ),
+      body: _findingBooking
+          ? _buildFindingBookingView()
+          : !_canReview
+              ? _buildCannotReviewView()
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Service info
+                      if (widget.serviceName != null || _booking != null)
+                        _buildServiceInfo(),
+                      
+                      const SizedBox(height: 20),
+                      
+                      // Rating section
+                      _buildRatingSection(),
+                      
+                      const SizedBox(height: 30),
+                      
+                      // Review text
+                      _buildReviewTextField(),
+                      
+                      const SizedBox(height: 40),
+                      
+                      // Submit button
+                      _buildSubmitButton(),
+                    ],
+                  ),
+                ),
+    );
+  }
+
+  Widget _buildFindingBookingView() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 16),
+          Text(
+            'Checking review eligibility...',
+            style: TextStyle(fontSize: 16),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Looking for your booking...',
+            style: TextStyle(fontSize: 14, color: Colors.grey),
+          ),
+        ],
+      ),
     );
   }
 
@@ -181,26 +280,28 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.block,
+              Icons.error_outline,
               size: 80,
-              color: Colors.grey[400],
+              color: Colors.orange[400],
             ),
             const SizedBox(height: 20),
-            const Text(
-              'Cannot Write Review',
-              style: TextStyle(
+            Text(
+              _errorMessage?.contains('booking') == true
+                  ? 'Booking Required'
+                  : 'Cannot Write Review',
+              style: const TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
                 color: Colors.grey,
               ),
             ),
             const SizedBox(height: 12),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 30),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 30),
               child: Text(
-                'You need to book and complete this service before writing a review.',
+                _errorMessage ?? 'You need to book and complete this service before writing a review.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 16,
                   color: Colors.grey,
                   height: 1.5,
@@ -210,7 +311,18 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
             const SizedBox(height: 30),
             ElevatedButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Go Back'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+              ),
+              child: const Text(
+                'Go Back',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton(
+              onPressed: _findOrValidateBooking,
+              child: const Text('Check Again'),
             ),
           ],
         ),
@@ -255,6 +367,15 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
               ),
             ],
             if (_booking != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Booking ID: ${_booking!.id.substring(0, 8)}...',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[500],
+                  fontFamily: 'monospace',
+                ),
+              ),
               const SizedBox(height: 8),
               Text(
                 'Booked on: ${_booking!.formattedBookingDate}',
@@ -446,7 +567,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: _loading ? null : _submitReview,
+        onPressed: (_loading || !_canReview || _booking == null) ? null : _submitReview,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
@@ -480,4 +601,4 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
     _commentController.dispose();
     super.dispose();
   }
-}
+} 

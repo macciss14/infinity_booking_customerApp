@@ -1,5 +1,6 @@
 // lib/screens/main/home_screen.dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart'; // Add this import
 import '../../services/auth_service.dart';
 import '../../services/category_service.dart';
 import '../../services/service_service.dart';
@@ -10,6 +11,7 @@ import '../../models/booking_model.dart';
 import '../../config/route_helper.dart';
 import '../../utils/constants.dart';
 import '../../models/user_model.dart';
+import '../../widgets/notification_bell.dart'; // Add this import
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -94,195 +96,203 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: () async {
-        _refreshData();
-        await Future.delayed(const Duration(seconds: 1));
-      },
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppConstants.defaultPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            FutureBuilder<UserModel?>(
-              future: _userFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Text('Hello, Loading... 👋',
-                      style:
-                          TextStyle(fontSize: 24, fontWeight: FontWeight.bold));
-                }
-                final userName = snapshot.data?.fullname ?? 'Guest';
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Hello, $userName! ',
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        )),
-                    const SizedBox(height: 8),
-                    const Text('Book your favorite services with ease',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: AppColors.textSecondary,
-                        )),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 32),
-            const Text('Quick Actions',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                )),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildQuickAction(
-                    icon: Icons.category,
-                    title: 'Browse\nServices',
-                    onTap: _navigateToServices,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildQuickAction(
-                    icon: Icons.calendar_today,
-                    title: 'My\nBookings',
-                    onTap: _navigateToBookings,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildQuickAction(
-                    icon: Icons.local_offer,
-                    title: 'Special\nOffers',
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Special offers coming soon!'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 32),
-            const Text('Popular Categories',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                )),
-            const SizedBox(height: 16),
-            // ✅ Updated: Combine categories and services futures
-            FutureBuilder<List<CategoryModel>>(
-              future: _categoriesFuture,
-              builder: (context, categorySnapshot) {
-                if (categorySnapshot.connectionState ==
-                    ConnectionState.waiting) {
-                  return _buildLoadingGrid();
-                }
-                if (categorySnapshot.hasError) {
-                  return _buildErrorWidget(
-                      'Failed to load categories: ${categorySnapshot.error}');
-                }
-                if (categorySnapshot.hasData &&
-                    categorySnapshot.data!.isNotEmpty) {
-                  final categories = categorySnapshot.data!;
-                  return FutureBuilder<List<ServiceModel>>(
-                    future: _servicesFuture,
-                    builder: (context, serviceSnapshot) {
-                      if (serviceSnapshot.connectionState ==
-                          ConnectionState.waiting) {
-                        return _buildLoadingGrid();
-                      }
-                      if (serviceSnapshot.hasError) {
-                        return _buildErrorWidget(
-                            'Failed to load services: ${serviceSnapshot.error}');
-                      }
-                      // ✅ Calculate service counts
-                      final serviceCounts = _calculateServiceCounts(
-                        categories,
-                        serviceSnapshot.data ?? [],
-                      );
-                      return _buildCategoriesGrid(categories, serviceCounts);
-                    },
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Home'),
+        actions: [
+          const NotificationBell(), // ← ADD THIS LINE
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          _refreshData();
+          await Future.delayed(const Duration(seconds: 1));
+        },
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppConstants.defaultPadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FutureBuilder<UserModel?>(
+                future: _userFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Text('Hello, Loading... 👋',
+                        style:
+                            TextStyle(fontSize: 24, fontWeight: FontWeight.bold));
+                  }
+                  final userName = snapshot.data?.fullname ?? 'Guest';
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Hello, $userName! ',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          )),
+                      const SizedBox(height: 8),
+                      const Text('Book your favorite services with ease',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: AppColors.textSecondary,
+                          )),
+                    ],
                   );
-                }
-                return _buildEmptyWidget('No categories available');
-              },
-            ),
-            const SizedBox(height: 32),
-            const Text('Featured Services',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                )),
-            const SizedBox(height: 16),
-            FutureBuilder<List<ServiceModel>>(
-              future: _servicesFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return _buildLoadingList();
-                }
-                if (snapshot.hasError) {
-                  return _buildErrorWidget(
-                      'Failed to load services: ${snapshot.error}');
-                }
-                if (snapshot.hasData) {
-                  // Filter featured services or just take first 5
-                  final featuredServices = snapshot.data!
-                      .where((service) => service.isFeatured == true)
-                      .take(5)
-                      .toList();
+                },
+              ),
+              const SizedBox(height: 32),
+              const Text('Quick Actions',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  )),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildQuickAction(
+                      icon: Icons.category,
+                      title: 'Browse\nServices',
+                      onTap: _navigateToServices,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildQuickAction(
+                      icon: Icons.calendar_today,
+                      title: 'My\nBookings',
+                      onTap: _navigateToBookings,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildQuickAction(
+                      icon: Icons.local_offer,
+                      title: 'Special\nOffers',
+                      onTap: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Special offers coming soon!'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
+              const Text('Popular Categories',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  )),
+              const SizedBox(height: 16),
+              // ✅ Updated: Combine categories and services futures
+              FutureBuilder<List<CategoryModel>>(
+                future: _categoriesFuture,
+                builder: (context, categorySnapshot) {
+                  if (categorySnapshot.connectionState ==
+                      ConnectionState.waiting) {
+                    return _buildLoadingGrid();
+                  }
+                  if (categorySnapshot.hasError) {
+                    return _buildErrorWidget(
+                        'Failed to load categories: ${categorySnapshot.error}');
+                  }
+                  if (categorySnapshot.hasData &&
+                      categorySnapshot.data!.isNotEmpty) {
+                    final categories = categorySnapshot.data!;
+                    return FutureBuilder<List<ServiceModel>>(
+                      future: _servicesFuture,
+                      builder: (context, serviceSnapshot) {
+                        if (serviceSnapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return _buildLoadingGrid();
+                        }
+                        if (serviceSnapshot.hasError) {
+                          return _buildErrorWidget(
+                              'Failed to load services: ${serviceSnapshot.error}');
+                        }
+                        // ✅ Calculate service counts
+                        final serviceCounts = _calculateServiceCounts(
+                          categories,
+                          serviceSnapshot.data ?? [],
+                        );
+                        return _buildCategoriesGrid(categories, serviceCounts);
+                      },
+                    );
+                  }
+                  return _buildEmptyWidget('No categories available');
+                },
+              ),
+              const SizedBox(height: 32),
+              const Text('Featured Services',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  )),
+              const SizedBox(height: 16),
+              FutureBuilder<List<ServiceModel>>(
+                future: _servicesFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return _buildLoadingList();
+                  }
+                  if (snapshot.hasError) {
+                    return _buildErrorWidget(
+                        'Failed to load services: ${snapshot.error}');
+                  }
+                  if (snapshot.hasData) {
+                    // Filter featured services or just take first 5
+                    final featuredServices = snapshot.data!
+                        .where((service) => service.isFeatured == true)
+                        .take(5)
+                        .toList();
 
-                  // If no featured services, show first 5
-                  final services = featuredServices.isNotEmpty
-                      ? featuredServices
-                      : snapshot.data!.take(5).toList();
+                    // If no featured services, show first 5
+                    final services = featuredServices.isNotEmpty
+                        ? featuredServices
+                        : snapshot.data!.take(5).toList();
 
-                  return _buildServicesList(services);
-                }
-                return _buildEmptyWidget('No featured services');
-              },
-            ),
-            const SizedBox(height: 32),
-            const Text('Recent Bookings',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                )),
-            const SizedBox(height: 16),
-            FutureBuilder<List<BookingModel>>(
-              future: _recentBookingsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return _buildLoadingList();
-                }
-                if (snapshot.hasError) {
-                  return _buildErrorWidget(
-                      'Failed to load bookings: ${snapshot.error}');
-                }
-                if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-                  // Get recent bookings (last 3)
-                  final recent = snapshot.data!.take(3).toList();
-                  return _buildBookingsList(recent);
-                }
-                return _buildEmptyWidget('No recent bookings');
-              },
-            ),
-            const SizedBox(height: 32),
-          ],
+                    return _buildServicesList(services);
+                  }
+                  return _buildEmptyWidget('No featured services');
+                },
+              ),
+              const SizedBox(height: 32),
+              const Text('Recent Bookings',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  )),
+              const SizedBox(height: 16),
+              FutureBuilder<List<BookingModel>>(
+                future: _recentBookingsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return _buildLoadingList();
+                  }
+                  if (snapshot.hasError) {
+                    return _buildErrorWidget(
+                        'Failed to load bookings: ${snapshot.error}');
+                  }
+                  if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                    // Get recent bookings (last 3)
+                    final recent = snapshot.data!.take(3).toList();
+                    return _buildBookingsList(recent);
+                  }
+                  return _buildEmptyWidget('No recent bookings');
+                },
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
         ),
       ),
     );
