@@ -97,12 +97,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Home'),
-        actions: [
-          const NotificationBell(), // ← ADD THIS LINE
-        ],
-      ),
       body: RefreshIndicator(
         onRefresh: () async {
           _refreshData();
@@ -118,14 +112,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Text('Hello, Loading... 👋',
-                        style:
-                            TextStyle(fontSize: 24, fontWeight: FontWeight.bold));
+                        style: TextStyle(
+                            fontSize: 24, fontWeight: FontWeight.bold));
                   }
                   final userName = snapshot.data?.fullname ?? 'Guest';
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Hello, $userName! ',
+                      Text('welcome back',
                           style: const TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
@@ -375,10 +369,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             category.imageUrl!,
                             width: 24,
                             height: 24,
-                            errorBuilder: (context, error, stackTrace) => const Icon(
-                                Icons.category,
-                                color: AppColors.primary,
-                                size: 24),
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Icon(Icons.category,
+                                    color: AppColors.primary, size: 24),
                           )
                         : const Icon(Icons.category,
                             color: AppColors.primary, size: 24),
@@ -465,7 +458,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           if (service.rating != null && service.rating! > 0)
                             Row(
                               children: [
-                                const Icon(Icons.star, size: 14, color: Colors.amber),
+                                const Icon(Icons.star,
+                                    size: 14, color: Colors.amber),
                                 const SizedBox(width: 2),
                                 Text(
                                   service.rating!.toStringAsFixed(1),
@@ -762,7 +756,8 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 16),
           Text(
             message,
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 16),
+            style:
+                const TextStyle(color: AppColors.textSecondary, fontSize: 16),
           ),
         ],
       ),

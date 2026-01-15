@@ -1,536 +1,417 @@
-// lib/models/review_model.dart
 import 'dart:convert';
-import 'package:flutter/material.dart'; // Add this import
-import 'package:intl/intl.dart';
-
+import 'package:flutter/material.dart';
 class ReviewModel {
-  final String id;
-  final String serviceId;
-  final String bookingId; // Required for review creation
-  final String? customerId;
-  final String? customerName;
-  final String? customerEmail;
-  final double? rating;
-  final String? comment;
-  final String? response;
-  final DateTime? createdAt;
-  final DateTime? updatedAt;
-  final DateTime? respondedAt;
-  final int? helpfulCount;
-  final String? status;
-  final String? providerId;
+  final String id; // MongoDB _id
+  final String serviceId; // This should be svc_xxx
+  final String serviceName;
+  final String bookingId; // This should be booking reference like BK-xxx
+  final double rating;
+  final String comment;
+  final String reviewerId; // Customer CID
+  final String reviewerName;
+  final String reviewerEmail;
+  final String? reviewerImage;
+  final String? providerId; // Provider PID (PROV-xxx)
   final String? providerName;
-  final List<String>? helpfulUsers;
-  final bool? isReported;
-  final String? reportReason;
-  final String? serviceName;
-  final String? providerResponse;
-  final String? customerAvatar;
-  final String? customerInitials;
-  final String? bookingReference;
-  final bool? isVerifiedBooking;
-  final String? reviewType; // service, provider, booking
-  final Map<String, dynamic>? metadata;
+  final bool isPublished;
+  final bool isFeatured;
+  final DateTime createdAt;
+  final DateTime? updatedAt;
 
-  const ReviewModel({
+  // Additional fields from your backend
+  final bool isVerified;
+  final String? status;
+  final int? helpfulCount;
+  final bool? isHelpful;
+  final String? providerResponse;
+  final DateTime? respondedAt;
+
+  ReviewModel({
     required this.id,
     required this.serviceId,
+    required this.serviceName,
     required this.bookingId,
-    this.customerId,
-    this.customerName,
-    this.customerEmail,
-    this.rating,
-    this.comment,
-    this.response,
-    this.createdAt,
-    this.updatedAt,
-    this.respondedAt,
-    this.helpfulCount,
-    this.status,
+    required this.rating,
+    required this.comment,
+    required this.reviewerId,
+    required this.reviewerName,
+    required this.reviewerEmail,
+    this.reviewerImage,
     this.providerId,
     this.providerName,
-    this.helpfulUsers,
-    this.isReported,
-    this.reportReason,
-    this.serviceName,
+    this.isPublished = true,
+    this.isFeatured = false,
+    required this.createdAt,
+    this.updatedAt,
+    this.isVerified = false,
+    this.status,
+    this.helpfulCount,
+    this.isHelpful,
     this.providerResponse,
-    this.customerAvatar,
-    this.customerInitials,
-    this.bookingReference,
-    this.isVerifiedBooking,
-    this.reviewType,
-    this.metadata,
+    this.respondedAt,
   });
 
-  // Factory constructor for creating a new review (before sending to API)
-  factory ReviewModel.create({
-    required String serviceId,
-    required String bookingId,
-    required double rating,
-    required String comment,
-    String? customerId,
-    String? customerName,
-    String? serviceName,
-    String? providerId,
-    String? providerName,
-  }) {
-    return ReviewModel(
-      id: '', // Will be assigned by server
-      serviceId: serviceId,
-      bookingId: bookingId,
-      customerId: customerId,
-      customerName: customerName,
-      rating: rating,
-      comment: comment,
-      status: 'pending',
-      createdAt: DateTime.now(),
-      serviceName: serviceName,
-      providerId: providerId,
-      providerName: providerName,
-    );
-  }
-
-  // Factory constructor from JSON
   factory ReviewModel.fromJson(Map<String, dynamic> json) {
-    // Helper function to parse dates
-    DateTime? parseDate(dynamic dateValue) {
-      if (dateValue == null) return null;
-      try {
-        if (dateValue is String) {
-          return DateTime.tryParse(dateValue);
-        } else if (dateValue is Map && dateValue.containsKey('\$date')) {
-          return DateTime.tryParse(dateValue['\$date'].toString());
-        } else if (dateValue is int) {
-          return DateTime.fromMillisecondsSinceEpoch(dateValue);
+    print('🔍 Parsing Review JSON: ${json.keys.toList()}');
+
+    // Extract booking ID - CRITICAL: Look for bookingId field
+    String extractBookingId() {
+      // Your backend returns bookingId directly
+      final bookingId = json['bookingId']?.toString().trim();
+      if (bookingId != null && bookingId.isNotEmpty) {
+        print('✅ Found bookingId: $bookingId');
+        return bookingId;
+      }
+      
+      // Also check in nested booking object
+      if (json['booking'] is Map) {
+        final booking = json['booking'] as Map<String, dynamic>;
+        final bookingRef = booking['bookingId']?.toString().trim() ?? 
+                          booking['bookingReference']?.toString().trim();
+        if (bookingRef != null && bookingRef.isNotEmpty) {
+          print('✅ Found bookingId in booking object: $bookingRef');
+          return bookingRef;
         }
-        return null;
-      } catch (e) {
-        print('Error parsing date: $e');
-        return null;
       }
+      
+      print('⚠️ No bookingId found in review');
+      return '';
     }
 
-    // Extract user/customer info
-    Map<String, dynamic>? userMap;
-    if (json['user'] is Map) {
-      userMap = Map<String, dynamic>.from(json['user']);
-    } else if (json['customer'] is Map) {
-      userMap = Map<String, dynamic>.from(json['customer']);
-    } else if (json['reviewer'] is Map) {
-      userMap = Map<String, dynamic>.from(json['reviewer']);
-    }
-
-    // Extract provider info
-    Map<String, dynamic>? providerMap;
-    if (json['provider'] is Map) {
-      providerMap = Map<String, dynamic>.from(json['provider']);
-    }
-
-    // Extract service info
-    Map<String, dynamic>? serviceMap;
-    if (json['service'] is Map) {
-      serviceMap = Map<String, dynamic>.from(json['service']);
-    }
-
-    // Extract booking info
-    Map<String, dynamic>? bookingMap;
-    if (json['booking'] is Map) {
-      bookingMap = Map<String, dynamic>.from(json['booking']);
-    }
-
-    // Helper function to extract customer name
-    String? extractCustomerName(Map<String, dynamic>? userMap) {
-      if (userMap == null) return null;
-      return userMap['fullname']?.toString() ??
-          userMap['name']?.toString() ??
-          userMap['username']?.toString() ??
-          userMap['email']?.toString();
-    }
-
-    // Generate customer initials
-    String? generateCustomerInitials(String? name) {
-      if (name == null || name.isEmpty) return null;
-      final parts = name.split(' ').where((part) => part.isNotEmpty).toList();
-      if (parts.length >= 2) {
-        return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    // Extract service ID
+    String extractServiceId() {
+      // Your backend should return svc_xxx format
+      final serviceId = json['serviceId']?.toString() ?? '';
+      if (serviceId.isEmpty && json['service'] is Map) {
+        return json['service']['serviceId']?.toString() ?? 
+               json['service']['id']?.toString() ?? '';
       }
-      return name.length >= 2 ? name.substring(0, 2).toUpperCase() : name.toUpperCase();
+      return serviceId;
     }
 
     // Parse rating
-    double? parseRating(dynamic ratingValue) {
-      if (ratingValue == null) return null;
-      if (ratingValue is double) return ratingValue;
-      if (ratingValue is int) return ratingValue.toDouble();
-      if (ratingValue is String) return double.tryParse(ratingValue);
-      return null;
+    double extractRating() {
+      try {
+        final rating = json['rating'];
+        if (rating is int) return rating.toDouble();
+        if (rating is double) return rating;
+        if (rating is String) return double.tryParse(rating) ?? 0.0;
+        return 0.0;
+      } catch (e) {
+        print('❌ Error parsing rating: $e');
+        return 0.0;
+      }
     }
 
-    final customerName = extractCustomerName(userMap);
-    final initials = generateCustomerInitials(customerName);
+    // Parse dates
+    DateTime parseDate(dynamic dateValue) {
+      try {
+        if (dateValue == null) return DateTime.now();
+        if (dateValue is DateTime) return dateValue;
+        if (dateValue is String) return DateTime.parse(dateValue);
+        if (dateValue is int) return DateTime.fromMillisecondsSinceEpoch(dateValue);
+        return DateTime.now();
+      } catch (e) {
+        print('❌ Error parsing date: $e');
+        return DateTime.now();
+      }
+    }
+
+    DateTime? parseNullableDate(dynamic dateValue) {
+      try {
+        if (dateValue == null) return null;
+        if (dateValue is DateTime) return dateValue;
+        if (dateValue is String) return dateValue.isNotEmpty ? DateTime.parse(dateValue) : null;
+        if (dateValue is int) return DateTime.fromMillisecondsSinceEpoch(dateValue);
+        return null;
+      } catch (e) {
+        print('❌ Error parsing nullable date: $e');
+        return null;
+      }
+    }
+
+    // Extract reviewer info
+    String extractReviewerId() {
+      return json['customerId']?.toString() ?? // Your backend uses customerId
+             json['reviewerId']?.toString() ?? 
+             json['userId']?.toString() ?? '';
+    }
+
+    String extractReviewerName() {
+      if (json['customer'] is Map) {
+        return json['customer']['fullname']?.toString() ?? 
+               json['customer']['name']?.toString() ?? 'Customer';
+      }
+      return json['reviewerName']?.toString() ?? 
+             json['customerName']?.toString() ?? 'Customer';
+    }
+
+    // Extract reviewer email
+    String extractReviewerEmail() {
+      if (json['customer'] is Map) {
+        return json['customer']['email']?.toString() ?? '';
+      }
+      return json['reviewerEmail']?.toString() ?? 
+             json['customerEmail']?.toString() ?? '';
+    }
+
+    // Extract reviewer image
+    String? extractReviewerImage() {
+      if (json['customer'] is Map) {
+        return json['customer']['image']?.toString() ?? 
+               json['customer']['photo']?.toString();
+      }
+      return json['reviewerImage']?.toString() ?? 
+             json['customerImage']?.toString();
+    }
 
     return ReviewModel(
       id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
-      serviceId: json['serviceId']?.toString() ?? 
-                serviceMap?['_id']?.toString() ??
-                serviceMap?['id']?.toString() ??
-                '',
-      bookingId: json['bookingId']?.toString() ?? 
-                bookingMap?['_id']?.toString() ??
-                bookingMap?['id']?.toString() ??
-                json['booking']?.toString() ?? // Sometimes booking is just an ID string
-                '',
-      customerId: json['customerId']?.toString() ??
-                 userMap?['_id']?.toString() ??
-                 userMap?['id']?.toString() ??
-                 json['userId']?.toString() ??
-                 json['reviewerId']?.toString(),
-      customerName: customerName ??
-                   json['customerName']?.toString() ??
-                   json['reviewerName']?.toString() ??
-                   'Anonymous User',
-      customerEmail: userMap?['email']?.toString() ??
-                    json['customerEmail']?.toString() ??
-                    json['reviewerEmail']?.toString(),
-      rating: parseRating(json['rating']) ?? 0.0,
-      comment: json['comment']?.toString() ??
-               json['review']?.toString() ??
-               json['message']?.toString() ??
-               'No comment provided.',
-      response: json['response']?.toString(),
+      serviceId: extractServiceId(),
+      serviceName: json['serviceName']?.toString() ??
+                  json['service']?['name']?.toString() ??
+                  json['service']?['title']?.toString() ??
+                  'Service',
+      bookingId: extractBookingId(), // This is the booking reference like BK-xxx
+      rating: extractRating(),
+      comment: json['comment']?.toString() ?? '',
+      reviewerId: extractReviewerId(),
+      reviewerName: extractReviewerName(),
+      reviewerEmail: extractReviewerEmail(),
+      reviewerImage: extractReviewerImage(),
+      providerId: json['providerId']?.toString(),
+      providerName: json['providerName']?.toString(),
+      isPublished: json['isPublished'] as bool? ?? true,
+      isFeatured: json['isFeatured'] as bool? ?? false,
       createdAt: parseDate(json['createdAt']),
-      updatedAt: parseDate(json['updatedAt']),
-      respondedAt: parseDate(json['respondedAt']) ??
-                  parseDate(json['responseDate']),
-      helpfulCount: (json['helpfulCount'] as num?)?.toInt() ?? 0,
-      status: (json['status']?.toString() ?? 'published').toLowerCase(),
-      providerId: providerMap?['pid']?.toString() ??
-                 providerMap?['_id']?.toString() ??
-                 json['providerId']?.toString(),
-      providerName: providerMap?['fullname']?.toString() ??
-                   providerMap?['name']?.toString() ??
-                   json['providerName']?.toString(),
-      helpfulUsers: json['helpfulUsers'] is List
-          ? List<String>.from(json['helpfulUsers'].map((x) => x.toString()))
-          : null,
-      isReported: json['isReported'] == true || json['reported'] == true,
-      reportReason: json['reportReason']?.toString() ?? json['reportMessage']?.toString(),
-      serviceName: serviceMap?['name']?.toString() ??
-                  serviceMap?['title']?.toString() ??
-                  json['serviceName']?.toString(),
+      updatedAt: parseNullableDate(json['updatedAt']),
+      isVerified: json['isVerified'] as bool? ?? false,
+      status: json['status']?.toString(),
+      helpfulCount: (json['helpfulCount'] as num?)?.toInt(),
+      isHelpful: json['isHelpful'] as bool?,
       providerResponse: json['providerResponse']?.toString(),
-      customerAvatar: userMap?['avatar']?.toString() ??
-                     userMap?['profilePhoto']?.toString() ??
-                     userMap?['imageUrl']?.toString() ??
-                     json['customerAvatar']?.toString(),
-      customerInitials: initials,
-      bookingReference: bookingMap?['reference']?.toString() ??
-                       bookingMap?['bookingNumber']?.toString() ??
-                       json['bookingReference']?.toString(),
-      isVerifiedBooking: bookingMap?['isVerified'] ?? json['isVerifiedBooking'] ?? false,
-      reviewType: json['reviewType']?.toString() ?? 'service',
-      metadata: json['metadata'] is Map ? Map<String, dynamic>.from(json['metadata']) : null,
+      respondedAt: parseNullableDate(json['respondedAt']),
     );
   }
 
-  // Convert to JSON for API requests
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
+      '_id': id,
       'serviceId': serviceId,
-      'bookingId': bookingId,
-      'customerId': customerId,
-      'customerName': customerName,
-      'customerEmail': customerEmail,
+      'serviceName': serviceName,
+      'bookingId': bookingId, // This is the booking reference
       'rating': rating,
       'comment': comment,
-      'response': response,
-      'createdAt': createdAt?.toIso8601String(),
-      'updatedAt': updatedAt?.toIso8601String(),
-      'respondedAt': respondedAt?.toIso8601String(),
-      'helpfulCount': helpfulCount,
-      'status': status,
+      'customerId': reviewerId, // Your backend expects customerId
+      'reviewerName': reviewerName,
+      'reviewerEmail': reviewerEmail,
+      'reviewerImage': reviewerImage,
       'providerId': providerId,
       'providerName': providerName,
-      'helpfulUsers': helpfulUsers,
-      'isReported': isReported,
-      'reportReason': reportReason,
-      'serviceName': serviceName,
+      'isPublished': isPublished,
+      'isFeatured': isFeatured,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
+      'isVerified': isVerified,
+      'status': status,
+      'helpfulCount': helpfulCount,
+      'isHelpful': isHelpful,
       'providerResponse': providerResponse,
-      'customerAvatar': customerAvatar,
-      'customerInitials': customerInitials,
-      'bookingReference': bookingReference,
-      'isVerifiedBooking': isVerifiedBooking,
-      'reviewType': reviewType,
-      'metadata': metadata,
+      'respondedAt': respondedAt?.toIso8601String(),
     };
   }
 
-  // Convert to JSON string
-  String toJsonString() => json.encode(toJson());
+  // ==================== HELPER METHODS ====================
 
-  // For creating API request body (only essential fields)
-  Map<String, dynamic> toApiJson() {
-    return {
-      'serviceId': serviceId,
-      'bookingId': bookingId,
-      'rating': rating,
-      'comment': comment,
-      if (customerId != null) 'customerId': customerId,
-    };
-  }
-
-  // ========== GETTERS ==========
-
-  String get formattedCreatedAt {
-    if (createdAt == null) return 'Unknown';
-    final now = DateTime.now();
-    final difference = now.difference(createdAt!);
-    
-    if (difference.inDays > 7) {
-      return DateFormat('dd/MM/yyyy').format(createdAt!);
-    } else if (difference.inDays > 0) {
-      return '${difference.inDays}d ago';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}m ago';
-    } else {
-      return 'Just now';
-    }
-  }
-
-  String get formattedDetailedDate {
-    if (createdAt == null) return 'Unknown date';
-    return DateFormat('dd MMM yyyy, HH:mm').format(createdAt!);
-  }
-
-  String get formattedResponseDate {
-    if (respondedAt == null) return '';
-    return DateFormat('dd MMM yyyy, HH:mm').format(respondedAt!);
-  }
-
-  String get reviewerName => customerName ?? 'Anonymous User';
-  
+  // Get reviewer initials for avatar
   String get reviewerInitials {
-    if (customerInitials != null && customerInitials!.isNotEmpty) {
-      return customerInitials!;
-    }
-    final name = reviewerName;
-    if (name.isEmpty) return '?';
-    final parts = name.split(' ').where((part) => part.isNotEmpty).toList();
+    if (reviewerName.isEmpty) return 'CU';
+    final parts = reviewerName.trim().split(' ');
     if (parts.length >= 2) {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     }
-    return name.length >= 2
-        ? name.substring(0, 2).toUpperCase()
-        : name.toUpperCase();
+    return reviewerName.length >= 2
+        ? reviewerName.substring(0, 2).toUpperCase()
+        : reviewerName.toUpperCase();
   }
 
-  bool get hasProviderResponse => 
-      (response?.isNotEmpty == true) || 
-      (providerResponse?.isNotEmpty == true);
-  
-  String get providerResponseText => response ?? providerResponse ?? '';
-  
-  bool get isPublished => status?.toLowerCase() == 'published';
-  
-  bool get isPending => status?.toLowerCase() == 'pending';
-  
-  bool get isHidden => status?.toLowerCase() == 'hidden';
-  
-  bool get isDraft => status?.toLowerCase() == 'draft';
-  
-  bool get isHelpful => (helpfulCount ?? 0) > 0;
-  
-  bool get isReportedStatus => isReported == true;
-  
-  bool get isVerified => isVerifiedBooking == true;
-  
-  int get starRating => rating?.round() ?? 0;
+  // Format created at date for display
+  String get formattedCreatedAt {
+    final now = DateTime.now();
+    final difference = now.difference(createdAt);
 
-  // Fixed: Use Color objects instead of strings
-  Color get statusColor {
-    switch (status?.toLowerCase()) {
-      case 'published':
-        return Colors.green;
-      case 'pending':
-        return Colors.orange;
-      case 'hidden':
-      case 'archived':
-        return Colors.grey;
-      case 'reported':
-        return Colors.red;
-      default:
-        return Colors.grey;
+    if (difference.inDays > 365) {
+      final years = (difference.inDays / 365).floor();
+      return '$years ${years == 1 ? 'year' : 'years'} ago';
+    } else if (difference.inDays > 30) {
+      final months = (difference.inDays / 30).floor();
+      return '$months ${months == 1 ? 'month' : 'months'} ago';
+    } else if (difference.inDays > 0) {
+      return '${difference.inDays} ${difference.inDays == 1 ? 'day' : 'days'} ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} ${difference.inHours == 1 ? 'hour' : 'hours'} ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} ${difference.inMinutes == 1 ? 'minute' : 'minutes'} ago';
     }
+    return 'Just now';
   }
 
-  String get statusText {
-    switch (status?.toLowerCase()) {
-      case 'published':
-        return 'Published';
-      case 'pending':
-        return 'Pending Review';
-      case 'hidden':
-        return 'Hidden';
-      case 'archived':
-        return 'Archived';
-      case 'reported':
-        return 'Reported';
-      default:
-        return status ?? 'Unknown';
-    }
+  // Format response date for display
+  String get formattedResponseDate {
+    if (respondedAt == null) return '';
+    final now = DateTime.now();
+    final difference = now.difference(respondedAt!);
+    
+    if (difference.inDays > 0) return '${difference.inDays}d ago';
+    if (difference.inHours > 0) return '${difference.inHours}h ago';
+    if (difference.inMinutes > 0) return '${difference.inMinutes}m ago';
+    return 'Just now';
   }
 
-  String get ratingCategory {
-    final r = rating ?? 0.0;
-    if (r >= 4.5) return 'Excellent';
-    if (r >= 4.0) return 'Very Good';
-    if (r >= 3.0) return 'Good';
-    if (r >= 2.0) return 'Fair';
-    return 'Poor';
+  // Check if review has provider response
+  bool get hasProviderResponse => providerResponse != null && providerResponse!.isNotEmpty;
+  
+  // Get provider response text
+  String get providerResponseText => providerResponse ?? '';
+
+  // Get star rating breakdown
+  List<int> get starRating {
+    final fullStars = rating.floor();
+    final hasHalfStar = rating - fullStars >= 0.5;
+    return [fullStars, hasHalfStar ? 1 : 0, 5 - fullStars - (hasHalfStar ? 1 : 0)];
   }
 
-  // Fixed: Return Color object
+  // Check if review is valid
+  bool get isValid => serviceId.isNotEmpty && bookingId.isNotEmpty && rating > 0;
+
+  // Get display booking ID (truncated for UI)
+  String get displayBookingId {
+    if (bookingId.isEmpty) return 'No Booking';
+    if (bookingId.length <= 12) return bookingId;
+    return '${bookingId.substring(0, 10)}...';
+  }
+
+  // Check if booking ID is in BK- format
+  bool get isBkFormatBookingId => bookingId.startsWith('BK-');
+
+  // Check if review was created recently (within 7 days)
+  bool get isRecent {
+    return DateTime.now().difference(createdAt).inDays <= 7;
+  }
+
+  // Get rating color based on value
   Color get ratingColor {
-    final r = rating ?? 0.0;
-    if (r >= 4.0) return Colors.green;
-    if (r >= 3.0) return Colors.orange;
+    if (rating >= 4.0) return Colors.green;
+    if (rating >= 3.0) return Colors.orange;
     return Colors.red;
   }
 
-  // ========== HELPER METHODS ==========
+  // Get rating text based on value
+  String get ratingText {
+    if (rating >= 4.5) return 'Excellent';
+    if (rating >= 4.0) return 'Very Good';
+    if (rating >= 3.5) return 'Good';
+    if (rating >= 3.0) return 'Average';
+    if (rating >= 2.0) return 'Below Average';
+    return 'Poor';
+  }
 
-  // Copy with method
+  // Check if service ID has svc_ prefix
+  bool get hasSvcPrefix => serviceId.startsWith('svc_');
+
+  // Get clean service ID without svc_ prefix
+  String get cleanServiceId {
+    if (hasSvcPrefix) {
+      return serviceId.substring(4);
+    }
+    return serviceId;
+  }
+
+  // Format date for display (e.g., "Jan 15, 2024")
+  String get formattedDate {
+    final month = _getMonthName(createdAt.month);
+    final day = createdAt.day;
+    final year = createdAt.year;
+    return '$month $day, $year';
+  }
+
+  // Helper method to get month name
+  String _getMonthName(int month) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return months[month - 1];
+  }
+
+  // Format time for display (e.g., "2:30 PM")
+  String get formattedTime {
+    final hour = createdAt.hour % 12;
+    final minute = createdAt.minute.toString().padLeft(2, '0');
+    final period = createdAt.hour < 12 ? 'AM' : 'PM';
+    final displayHour = hour == 0 ? 12 : hour;
+    return '$displayHour:$minute $period';
+  }
+
+  // Get full date and time
+  String get formattedDateTime {
+    return '$formattedDate at $formattedTime';
+  }
+
+  // Copy with method for immutability
   ReviewModel copyWith({
     String? id,
     String? serviceId,
+    String? serviceName,
     String? bookingId,
-    String? customerId,
-    String? customerName,
-    String? customerEmail,
     double? rating,
     String? comment,
-    String? response,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-    DateTime? respondedAt,
-    int? helpfulCount,
-    String? status,
+    String? reviewerId,
+    String? reviewerName,
+    String? reviewerEmail,
+    String? reviewerImage,
     String? providerId,
     String? providerName,
-    List<String>? helpfulUsers,
-    bool? isReported,
-    String? reportReason,
-    String? serviceName,
+    bool? isPublished,
+    bool? isFeatured,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    bool? isVerified,
+    String? status,
+    int? helpfulCount,
+    bool? isHelpful,
     String? providerResponse,
-    String? customerAvatar,
-    String? customerInitials,
-    String? bookingReference,
-    bool? isVerifiedBooking,
-    String? reviewType,
-    Map<String, dynamic>? metadata,
+    DateTime? respondedAt,
   }) {
     return ReviewModel(
       id: id ?? this.id,
       serviceId: serviceId ?? this.serviceId,
+      serviceName: serviceName ?? this.serviceName,
       bookingId: bookingId ?? this.bookingId,
-      customerId: customerId ?? this.customerId,
-      customerName: customerName ?? this.customerName,
-      customerEmail: customerEmail ?? this.customerEmail,
       rating: rating ?? this.rating,
       comment: comment ?? this.comment,
-      response: response ?? this.response,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-      respondedAt: respondedAt ?? this.respondedAt,
-      helpfulCount: helpfulCount ?? this.helpfulCount,
-      status: status ?? this.status,
+      reviewerId: reviewerId ?? this.reviewerId,
+      reviewerName: reviewerName ?? this.reviewerName,
+      reviewerEmail: reviewerEmail ?? this.reviewerEmail,
+      reviewerImage: reviewerImage ?? this.reviewerImage,
       providerId: providerId ?? this.providerId,
       providerName: providerName ?? this.providerName,
-      helpfulUsers: helpfulUsers ?? this.helpfulUsers,
-      isReported: isReported ?? this.isReported,
-      reportReason: reportReason ?? this.reportReason,
-      serviceName: serviceName ?? this.serviceName,
+      isPublished: isPublished ?? this.isPublished,
+      isFeatured: isFeatured ?? this.isFeatured,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      isVerified: isVerified ?? this.isVerified,
+      status: status ?? this.status,
+      helpfulCount: helpfulCount ?? this.helpfulCount,
+      isHelpful: isHelpful ?? this.isHelpful,
       providerResponse: providerResponse ?? this.providerResponse,
-      customerAvatar: customerAvatar ?? this.customerAvatar,
-      customerInitials: customerInitials ?? this.customerInitials,
-      bookingReference: bookingReference ?? this.bookingReference,
-      isVerifiedBooking: isVerifiedBooking ?? this.isVerifiedBooking,
-      reviewType: reviewType ?? this.reviewType,
-      metadata: metadata ?? this.metadata,
+      respondedAt: respondedAt ?? this.respondedAt,
     );
-  }
-
-  // For creating an empty review (placeholder)
-  factory ReviewModel.empty() {
-    return ReviewModel(
-      id: '',
-      serviceId: '',
-      bookingId: '',
-      rating: 0.0,
-      comment: '',
-      status: 'pending',
-      createdAt: DateTime.now(),
-    );
-  }
-
-  // Check if review is empty
-  bool get isEmpty => id.isEmpty || serviceId.isEmpty || bookingId.isEmpty;
-
-  // Check if review is valid for submission
-  bool get isValidForSubmission {
-    return serviceId.isNotEmpty && 
-           bookingId.isNotEmpty && 
-           (rating ?? 0) > 0 && 
-           (comment?.isNotEmpty == true);
-  }
-
-  // Star widgets for UI (now returns Widgets properly)
-  List<Widget> getStarWidgets({double size = 16}) {
-    final fullStars = starRating;
-    final emptyStars = 5 - fullStars;
-    final stars = <Widget>[];
-    
-    for (int i = 0; i < fullStars; i++) {
-      stars.add(Icon(Icons.star, size: size, color: Colors.amber));
-    }
-    for (int i = 0; i < emptyStars; i++) {
-      stars.add(Icon(Icons.star_border, size: size, color: Colors.grey));
-    }
-    
-    return stars;
-  }
-
-  // Rating progress (0-1)
-  double get ratingProgress => (rating ?? 0.0) / 5.0;
-
-  // Check if review can be edited (within 24 hours of creation)
-  bool get canBeEdited {
-    if (createdAt == null) return false;
-    final now = DateTime.now();
-    final difference = now.difference(createdAt!);
-    return difference.inHours <= 24 && isPublished;
-  }
-
-  // Check if review can be deleted (within 1 hour of creation)
-  bool get canBeDeleted {
-    if (createdAt == null) return false;
-    final now = DateTime.now();
-    final difference = now.difference(createdAt!);
-    return difference.inHours <= 1;
-  }
-
-  // Get excerpt of comment (first 100 chars)
-  String get commentExcerpt {
-    if (comment == null || comment!.isEmpty) return '';
-    return comment!.length <= 100 ? comment! : '${comment!.substring(0, 100)}...';
   }
 
   @override
   String toString() {
-    return 'ReviewModel{id: $id, serviceId: $serviceId, rating: $rating, status: $status}';
+    return 'ReviewModel{id: $id, service: $serviceId, booking: $bookingId, rating: $rating, reviewer: $reviewerName}';
   }
 
   @override
@@ -538,10 +419,8 @@ class ReviewModel {
       identical(this, other) ||
       other is ReviewModel &&
           runtimeType == other.runtimeType &&
-          id == other.id &&
-          serviceId == other.serviceId &&
-          bookingId == other.bookingId;
+          id == other.id;
 
   @override
-  int get hashCode => Object.hash(id, serviceId, bookingId);
+  int get hashCode => id.hashCode;
 }

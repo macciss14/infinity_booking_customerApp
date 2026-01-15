@@ -138,7 +138,8 @@ class _ServiceListScreenState extends State<ServiceListScreen> {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(25),
-            borderSide: const BorderSide(color: AppColors.primaryLight, width: 2),
+            borderSide:
+                const BorderSide(color: AppColors.primaryLight, width: 2),
           ),
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -741,10 +742,6 @@ class _ServiceListScreenState extends State<ServiceListScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Services'),
-          backgroundColor: AppColors.primary,
-        ),
         body: _buildLoadingState(),
       );
     }

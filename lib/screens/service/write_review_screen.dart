@@ -1,4 +1,3 @@
-// lib/screens/service/write_review_screen.dart - FIXED VERSION
 import 'package:flutter/material.dart';
 import '../../services/review_service.dart';
 import '../../services/booking_service.dart';
@@ -8,7 +7,7 @@ import '../../utils/constants.dart';
 class WriteReviewScreen extends StatefulWidget {
   final String serviceId;
   final String? serviceName;
-  final String? bookingId; // Optional if we need to find it
+  final String? bookingId;
 
   const WriteReviewScreen({
     super.key,
@@ -28,101 +27,103 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
   double _rating = 0.0;
   final TextEditingController _commentController = TextEditingController();
   bool _loading = false;
-  bool _canReview = true;
-  bool _findingBooking = true;
-  BookingModel? _booking;
+  bool _checkingEligibility = true;
   String? _errorMessage;
+  String? _bookingIdToUse;
+  bool _canReview = false;
+  BookingModel? _selectedBooking;
 
   @override
   void initState() {
     super.initState();
-    _findOrValidateBooking();
+    _setupReview();
   }
 
-  Future<void> _findOrValidateBooking() async {
+  Future<void> _setupReview() async {
     try {
       setState(() {
-        _findingBooking = true;
+        _checkingEligibility = true;
         _errorMessage = null;
       });
 
-      print('🔍 Finding booking for service: ${widget.serviceId}');
+      print('🔍 Setting up review for service: ${widget.serviceId}');
 
-      // Case 1: If bookingId is provided, validate it
-      if (widget.bookingId != null) {
-        print('📋 Using provided booking ID: ${widget.bookingId}');
-        try {
-          _booking = await _bookingService.getBookingById(widget.bookingId!);
-          if (_booking?.serviceId == widget.serviceId) {
-            print('✅ Provided booking ID is valid');
-            _canReview = true;
-          } else {
-            _errorMessage = 'Invalid booking for this service';
-            _canReview = false;
-          }
-        } catch (e) {
-          print('❌ Error loading provided booking: $e');
-          _errorMessage = 'Could not validate booking';
-          _canReview = false;
-        }
-      } 
-      // Case 2: Find booking from user's bookings
-      else {
-        print('🔍 Searching for user bookings for service: ${widget.serviceId}');
-        final bookings = await _bookingService.getUserBookings();
-        
-        // Find completed/approved bookings for this service
-        final validBookings = bookings.where((booking) {
-          return booking.serviceId == widget.serviceId && 
-                 (booking.status == 'completed' || 
-                  booking.status == 'approved' ||
-                  booking.status == 'delivered' ||
-                  booking.status == 'fulfilled');
-        }).toList();
-        
-        if (validBookings.isNotEmpty) {
-          // Use the most recent booking
-          validBookings.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          _booking = validBookings.first;
-          print('✅ Found booking ID: ${_booking!.id} for service');
-          _canReview = true;
-        } else {
-          _errorMessage = 'No completed booking found for this service';
-          _canReview = false;
-          print('❌ No valid bookings found. Available bookings:');
-          for (var booking in bookings) {
-            print('   - Booking ${booking.id}: service=${booking.serviceId}, status=${booking.status}');
-          }
-        }
+      // If bookingId is provided, use it directly
+      if (widget.bookingId != null && widget.bookingId!.isNotEmpty) {
+        print('✅ Using provided booking ID: ${widget.bookingId}');
+        _bookingIdToUse = widget.bookingId;
+        _canReview = true;
+      } else {
+        // Find completed bookings for this service
+        await _findCompletedBooking();
       }
-      
-      // Double-check with backend API
-      if (_canReview) {
-        try {
-          final canReviewApi = await _reviewService.canReviewService(widget.serviceId);
-          if (!canReviewApi) {
-            _errorMessage = 'Cannot review this service yet. Please complete your booking first.';
-            _canReview = false;
-          }
-        } catch (e) {
-          print('⚠️ API review check failed, but proceeding with local check: $e');
-          // Continue with local check if API fails
-        }
-      }
+
+      print('✅ Setup complete. Can review: $_canReview');
+      print('✅ Booking ID to use: $_bookingIdToUse');
 
     } catch (error) {
-      print('❌ Error checking review eligibility: $error');
-      _errorMessage = 'Error checking review eligibility: ${error.toString()}';
-      _canReview = false;
+      print('❌ Error in setup: $error');
+      _errorMessage = 'Error setting up review. Please try again.';
+      _setCannotReviewState();
     } finally {
-      setState(() {
-        _findingBooking = false;
-      });
+      if (mounted) {
+        setState(() => _checkingEligibility = false);
+      }
     }
   }
 
+  Future<void> _findCompletedBooking() async {
+    try {
+      print('🔍 Searching for completed bookings for service: ${widget.serviceId}');
+      
+      final bookings = await _bookingService.getUserBookings();
+      print('📊 Total bookings found: ${bookings.length}');
+      
+      // Find completed bookings for this service
+      final completedBookings = bookings.where((booking) {
+        final isSameService = booking.serviceId == widget.serviceId;
+        final isCompleted = booking.status == 'completed';
+        
+        if (isSameService) {
+          print('📋 Booking ${booking.id}: service=${booking.serviceId}, status=${booking.status}');
+        }
+        
+        return isSameService && isCompleted;
+      }).toList();
+
+      if (completedBookings.isNotEmpty) {
+        // Use the most recent completed booking
+        completedBookings.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        _selectedBooking = completedBookings.first;
+        _bookingIdToUse = _selectedBooking!.id; // This is the bookingId string from backend
+        _canReview = true;
+        
+        print('✅ Found completed booking: ${_selectedBooking!.id}');
+        print('✅ Booking status: ${_selectedBooking!.status}');
+        print('✅ Booking created: ${_selectedBooking!.createdAt}');
+      } else {
+        print('❌ No completed bookings found');
+        _errorMessage = 'No completed booking found for this service. '
+            'Please wait until your booking is marked as completed.';
+        _setCannotReviewState();
+      }
+    } catch (error) {
+      print('❌ Error finding bookings: $error');
+      _errorMessage = 'Unable to load your bookings. Please try again.';
+      _setCannotReviewState();
+    }
+  }
+
+  void _setCannotReviewState() {
+    setState(() {
+      _canReview = false;
+      _bookingIdToUse = null;
+      _selectedBooking = null;
+    });
+  }
+
   Future<void> _submitReview() async {
-    if (!_canReview || _booking == null) {
+    if (!_canReview || _bookingIdToUse == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_errorMessage ?? 'Cannot submit review'),
@@ -155,16 +156,17 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
     setState(() => _loading = true);
 
     try {
-      print('📝 Submitting review for service: ${widget.serviceId}');
-      print('📝 Using booking ID: ${_booking!.id}');
-      print('📝 Rating: $_rating');
-      print('📝 Comment: ${_commentController.text.trim()}');
+      print('📝 Submitting review...');
+      print('Service ID: ${widget.serviceId}');
+      print('Booking ID (string): $_bookingIdToUse');
+      print('Rating: $_rating');
+      print('Comment: ${_commentController.text.trim()}');
 
       await _reviewService.createReview(
         serviceId: widget.serviceId,
+        bookingId: _bookingIdToUse!, // This should be the bookingId string from backend
         rating: _rating,
         comment: _commentController.text.trim(),
-        // bookingId parameter is now handled inside createReview()
       );
 
       if (mounted) {
@@ -176,16 +178,29 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
           ),
         );
         
-        // Navigate back with success
         Navigator.pop(context, true);
       }
     } catch (error) {
       print('❌ Error submitting review: $error');
+      String errorMessage = error.toString();
+      
+      // Handle specific error messages
+      if (errorMessage.contains('Booking not found')) {
+        errorMessage = 'Booking not found. Please make sure the booking is completed.';
+      } else if (errorMessage.contains('already reviewed')) {
+        errorMessage = 'You have already reviewed this service.';
+      } else if (errorMessage.contains('completed bookings')) {
+        errorMessage = 'You can only review completed bookings.';
+      } else if (errorMessage.contains('own bookings')) {
+        errorMessage = 'You can only review your own bookings.';
+      }
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to submit review: ${error.toString()}'),
+            content: Text('Failed to submit review: $errorMessage'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
@@ -196,62 +211,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Write a Review'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        actions: [
-          if (_loading || _findingBooking)
-            const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              ),
-            ),
-        ],
-      ),
-      body: _findingBooking
-          ? _buildFindingBookingView()
-          : !_canReview
-              ? _buildCannotReviewView()
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Service info
-                      if (widget.serviceName != null || _booking != null)
-                        _buildServiceInfo(),
-                      
-                      const SizedBox(height: 20),
-                      
-                      // Rating section
-                      _buildRatingSection(),
-                      
-                      const SizedBox(height: 30),
-                      
-                      // Review text
-                      _buildReviewTextField(),
-                      
-                      const SizedBox(height: 40),
-                      
-                      // Submit button
-                      _buildSubmitButton(),
-                    ],
-                  ),
-                ),
-    );
-  }
-
-  Widget _buildFindingBookingView() {
+  Widget _buildLoadingView() {
     return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -259,20 +219,15 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
           CircularProgressIndicator(),
           SizedBox(height: 16),
           Text(
-            'Checking review eligibility...',
+            'Setting up review...',
             style: TextStyle(fontSize: 16),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Looking for your booking...',
-            style: TextStyle(fontSize: 14, color: Colors.grey),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCannotReviewView() {
+  Widget _buildErrorView() {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -285,11 +240,9 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
               color: Colors.orange[400],
             ),
             const SizedBox(height: 20),
-            Text(
-              _errorMessage?.contains('booking') == true
-                  ? 'Booking Required'
-                  : 'Cannot Write Review',
-              style: const TextStyle(
+            const Text(
+              'Cannot Write Review',
+              style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
                 color: Colors.grey,
@@ -299,7 +252,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 30),
               child: Text(
-                _errorMessage ?? 'You need to book and complete this service before writing a review.',
+                _errorMessage ?? 'You need to complete a booking for this service first.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 16,
@@ -321,7 +274,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
             ),
             const SizedBox(height: 16),
             OutlinedButton(
-              onPressed: _findOrValidateBooking,
+              onPressed: _setupReview,
               child: const Text('Check Again'),
             ),
           ],
@@ -331,9 +284,6 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
   }
 
   Widget _buildServiceInfo() {
-    String serviceName = widget.serviceName ?? _booking?.serviceName ?? 'This Service';
-    String? providerName = _booking?.providerName;
-    
     return Card(
       elevation: 1,
       child: Padding(
@@ -350,38 +300,89 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              serviceName,
+              widget.serviceName ?? 'This Service',
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            if (providerName != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Provider: $providerName',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
+            if (_selectedBooking != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Booking Details:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'ID: ${_selectedBooking!.id}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'monospace',
+                        color: Color.fromARGB(255, 86, 85, 85),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Status: ${_selectedBooking!.status.toUpperCase()}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _selectedBooking!.status == 'completed' 
+                            ? Colors.green 
+                            : Colors.orange,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Date: ${_selectedBooking!.formattedBookingDate}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-            if (_booking != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Booking ID: ${_booking!.id.substring(0, 8)}...',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[500],
-                  fontFamily: 'monospace',
+            ] else if (_bookingIdToUse != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Booked on: ${_booking!.formattedBookingDate}',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Booking ID:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _bookingIdToUse!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'monospace',
+                        color: Color.fromARGB(255, 75, 73, 73),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -436,37 +437,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
                   color: _rating == 0 ? Colors.grey : Colors.amber[800],
                 ),
               ),
-              
-              const SizedBox(height: 16),
-              
-              // Rating labels
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  Text('Poor', style: TextStyle(color: Colors.grey)),
-                  Text('Excellent', style: TextStyle(color: Colors.grey)),
-                ],
-              ),
             ],
-          ),
-        ),
-        
-        const SizedBox(height: 20),
-        
-        // Rating guidance
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.blue[50],
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.blue[100]!),
-          ),
-          child: const Text(
-            '⭐ 5 = Excellent\n⭐ 4 = Good\n⭐ 3 = Average\n⭐ 2 = Below Average\n⭐ 1 = Poor',
-            style: TextStyle(
-              fontSize: 14,
-              color: Color.fromARGB(255, 22, 117, 224),
-            ),
           ),
         ),
       ],
@@ -524,41 +495,6 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
             ),
           ],
         ),
-        
-        const SizedBox(height: 16),
-        
-        // Review tips
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.green[50],
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.green[100]!),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              Text(
-                '💡 Review Tips:',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Color.fromARGB(255, 65, 171, 71),
-                ),
-              ),
-              SizedBox(height: 4),
-              Text(
-                '• Be specific about your experience\n'
-                '• Mention what you liked or didn\'t like\n'
-                '• Keep it honest and helpful to others\n'
-                '• Avoid personal information',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Color.fromARGB(255, 65, 171, 70),
-                ),
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -567,7 +503,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: (_loading || !_canReview || _booking == null) ? null : _submitReview,
+        onPressed: (_loading || !_canReview) ? null : _submitReview,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
@@ -597,8 +533,62 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
   }
 
   @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Write a Review'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        actions: [
+          if (_loading || _checkingEligibility)
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+            ),
+        ],
+      ),
+      body: _checkingEligibility
+          ? _buildLoadingView()
+          : !_canReview
+              ? _buildErrorView()
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Service info
+                      _buildServiceInfo(),
+                      
+                      const SizedBox(height: 20),
+                      
+                      // Rating section
+                      _buildRatingSection(),
+                      
+                      const SizedBox(height: 30),
+                      
+                      // Review text
+                      _buildReviewTextField(),
+                      
+                      const SizedBox(height: 40),
+                      
+                      // Submit button
+                      _buildSubmitButton(),
+                    ],
+                  ),
+                ),
+    );
+  }
+
+  @override
   void dispose() {
     _commentController.dispose();
     super.dispose();
   }
-} 
+}

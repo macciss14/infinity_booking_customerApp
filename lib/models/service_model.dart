@@ -1,4 +1,4 @@
-// lib/models/service_model.dart
+// lib/models/service_model.dart 
 import 'dart:convert';
 
 class ServiceModel {
@@ -19,7 +19,7 @@ class ServiceModel {
   final int? reviewCount;
   final String? serviceType;
   final String? type;
-  final List<dynamic> slots;
+  final List<ServiceSlot> slots;
   final String? duration;
   final String? locationType;
   final String? serviceArea;
@@ -34,7 +34,7 @@ class ServiceModel {
   final DateTime? updatedAt;
   final String? providerEmail;
   final String? providerPhone;
-  final String? providerPid; // ✅ This MUST be the real PID (PROV-xxx)
+  final String? providerPid;
   final List<dynamic>? weeklySchedule;
   final int? totalSlots;
   final int? availableSlots;
@@ -138,41 +138,27 @@ class ServiceModel {
     this.statistics,
   });
 
+  // =================== PROPERTIES ===================
+
   Map<String, dynamic>? get providerData => provider;
 
   String get displayProviderName {
-    if (providerName != null && providerName!.isNotEmpty) {
-      return providerName!;
-    }
-
+    if (providerName != null && providerName!.isNotEmpty) return providerName!;
     if (provider != null && provider!.isNotEmpty) {
       final fullname = provider!['fullname']?.toString();
       if (fullname != null && fullname.isNotEmpty) return fullname;
-
       final name = provider!['name']?.toString();
       if (name != null && name.isNotEmpty) return name;
-
       final businessName = provider!['businessName']?.toString();
       if (businessName != null && businessName.isNotEmpty) return businessName;
-
       final firstName = provider!['firstName']?.toString();
       final lastName = provider!['lastName']?.toString();
-      if (firstName != null && lastName != null) {
-        return '$firstName $lastName';
-      }
-
+      if (firstName != null && lastName != null) return '$firstName $lastName';
       final username = provider!['username']?.toString();
       if (username != null && username.isNotEmpty) return username;
     }
-
-    if (providerPid != null && providerPid!.isNotEmpty) {
-      return 'Provider $providerPid';
-    }
-
-    if (providerId != null && providerId!.isNotEmpty) {
-      return 'Provider $providerId';
-    }
-
+    if (providerPid != null && providerPid!.isNotEmpty) return 'Provider $providerPid';
+    if (providerId != null && providerId!.isNotEmpty) return 'Provider $providerId';
     return 'Service Provider';
   }
 
@@ -180,11 +166,8 @@ class ServiceModel {
     final name = displayProviderName;
     if (name == 'Service Provider') return 'SP';
     final parts = name.split(' ').where((part) => part.isNotEmpty).toList();
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    } else if (name.length >= 2) {
-      return name.substring(0, 2).toUpperCase();
-    }
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    if (name.length >= 2) return name.substring(0, 2).toUpperCase();
     return name.isNotEmpty ? name[0].toUpperCase() : 'SP';
   }
 
@@ -219,9 +202,7 @@ class ServiceModel {
     if (provider != null) {
       final verified = provider!['isVerified'];
       if (verified is bool) return verified;
-      if (verified is String) {
-        return verified.toLowerCase() == 'true';
-      }
+      if (verified is String) return verified.toLowerCase() == 'true';
     }
     return false;
   }
@@ -263,22 +244,12 @@ class ServiceModel {
   int getAvailableSlotsCount() {
     if (slots.isEmpty) return 0;
     int count = 0;
-    for (var slot in slots) {
-      if (slot is Map<String, dynamic>) {
-        final weeklySchedule = slot['weeklySchedule'] as List?;
-        if (weeklySchedule != null) {
-          for (var day in weeklySchedule) {
-            if (day is Map && (day['isWorkingDay'] == true)) {
-              final timeSlots = day['timeSlots'] as List?;
-              if (timeSlots != null) {
-                for (var ts in timeSlots) {
-                  if (ts is Map) {
-                    final isAvailable = ts['isAvailable'] == true;
-                    final isBooked = ts['isBooked'] == true;
-                    if (isAvailable && !isBooked) count++;
-                  }
-                }
-              }
+    for (final slot in slots) {
+      if (slot.schedule != null) { // Changed from weeklySchedule to schedule
+        for (final day in slot.schedule!) {
+          if (day.isWorkingDay && day.timeSlots != null) {
+            for (final ts in day.timeSlots!) {
+              if (ts.isAvailable == true && ts.isBooked != true) count++;
             }
           }
         }
@@ -290,13 +261,10 @@ class ServiceModel {
   int get workingDaysCount {
     if (slots.isEmpty) return 0;
     int count = 0;
-    for (var slot in slots) {
-      if (slot is Map<String, dynamic>) {
-        final weeklySchedule = slot['weeklySchedule'] as List?;
-        if (weeklySchedule != null) {
-          for (var day in weeklySchedule) {
-            if (day is Map && (day['isWorkingDay'] == true)) count++;
-          }
+    for (final slot in slots) {
+      if (slot.schedule != null) { // Changed from weeklySchedule to schedule
+        for (final day in slot.schedule!) {
+          if (day.isWorkingDay) count++;
         }
       }
     }
@@ -306,15 +274,11 @@ class ServiceModel {
   int get totalTimeSlots {
     if (slots.isEmpty) return 0;
     int count = 0;
-    for (var slot in slots) {
-      if (slot is Map<String, dynamic>) {
-        final weeklySchedule = slot['weeklySchedule'] as List?;
-        if (weeklySchedule != null) {
-          for (var day in weeklySchedule) {
-            if (day is Map && (day['isWorkingDay'] == true)) {
-              final timeSlots = day['timeSlots'] as List?;
-              if (timeSlots != null) count += timeSlots.length;
-            }
+    for (final slot in slots) {
+      if (slot.schedule != null) { // Changed from weeklySchedule to schedule
+        for (final day in slot.schedule!) {
+          if (day.isWorkingDay && day.timeSlots != null) {
+            count += day.timeSlots!.length;
           }
         }
       }
@@ -326,17 +290,11 @@ class ServiceModel {
     if (slots.isEmpty) return null;
     try {
       final now = DateTime.now();
-      for (var slot in slots) {
-        if (slot is Map<String, dynamic>) {
-          final weeklySchedule = slot['weeklySchedule'] as List?;
-          if (weeklySchedule != null) {
-            for (var day in weeklySchedule) {
-              if (day is Map && (day['isWorkingDay'] == true)) {
-                final timeSlots = day['timeSlots'] as List?;
-                if (timeSlots != null && timeSlots.isNotEmpty) {
-                  return now.add(const Duration(days: 1));
-                }
-              }
+      for (final slot in slots) {
+        if (slot.schedule != null) { // Changed from weeklySchedule to schedule
+          for (final day in slot.schedule!) {
+            if (day.isWorkingDay && day.timeSlots != null && day.timeSlots!.isNotEmpty) {
+              return now.add(const Duration(days: 1));
             }
           }
         }
@@ -356,7 +314,7 @@ class ServiceModel {
   List<String> get subcategoryNames {
     final names = <String>{};
     if (subcategories != null) {
-      for (var sub in subcategories!) {
+      for (final sub in subcategories!) {
         final name = sub['name'] ?? sub['title'];
         if (name != null && name.toString().isNotEmpty) {
           names.add(name.toString());
@@ -427,6 +385,8 @@ class ServiceModel {
     }
   }
 
+  // =================== FACTORY METHOD ===================
+
   factory ServiceModel.fromJson(Map<String, dynamic> json) {
     Map<String, dynamic> serviceData =
         json.containsKey('service') && json['service'] is Map<String, dynamic>
@@ -444,9 +404,8 @@ class ServiceModel {
     String? providerId;
     String? providerEmail;
     String? providerPhone;
-    String? providerPid; // ✅ This should ONLY come from 'pid' field
+    String? providerPid;
 
-    // 🔥 ALWAYS prioritize embedded provider object if available
     if (providerMap != null) {
       providerName = providerMap['fullname'] ??
           providerMap['name'] ??
@@ -456,13 +415,12 @@ class ServiceModel {
               ? '${providerMap['firstName']} ${providerMap['lastName']}'
               : null);
       providerEmail = providerMap['email']?.toString();
-      providerPhone = providerMap['phone']?.toString();
+      providerPhone = providerMap['phonenumber']?.toString();
       providerId = providerMap['id']?.toString() ??
           providerMap['_id']?.toString() ??
           providerMap['providerId']?.toString();
-      providerPid = providerMap['pid']?.toString().trim(); // ✅ CRITICAL
+      providerPid = providerMap['pid']?.toString().trim();
     } else {
-      // Fallback to top-level fields (used in service list responses)
       providerName = serviceData['providerName']?.toString();
       providerEmail = serviceData['providerEmail']?.toString();
       providerPhone = serviceData['providerPhone']?.toString();
@@ -496,7 +454,7 @@ class ServiceModel {
       }
     }
 
-    List<dynamic> slots = [];
+    List<ServiceSlot> slots = [];
     if (serviceData['slots'] is List) {
       slots = _parseSlots(serviceData['slots'] as List);
     }
@@ -543,7 +501,7 @@ class ServiceModel {
       providerId: providerId,
       providerEmail: providerEmail,
       providerPhone: providerPhone,
-      providerPid: providerPid, // ✅ Now only contains real PID or null
+      providerPid: providerPid,
       provider: providerMap,
       imageUrl: _parseImageUrl(serviceData),
       paymentMethod: serviceData['paymentMethod']?.toString(),
@@ -618,6 +576,8 @@ class ServiceModel {
     );
   }
 
+  // =================== PRIVATE HELPER METHODS ===================
+
   static DateTime? _parseMongoDBDate(dynamic dateValue) {
     if (dateValue == null) return null;
     try {
@@ -636,33 +596,15 @@ class ServiceModel {
     return null;
   }
 
-  static List<dynamic> _parseSlots(List<dynamic> slotsData) {
-    final parsedSlots = <dynamic>[];
+  static List<ServiceSlot> _parseSlots(List<dynamic> slotsData) {
+    final parsedSlots = <ServiceSlot>[];
     for (var slot in slotsData) {
       if (slot is Map<String, dynamic>) {
-        final parsedSlot = Map<String, dynamic>.from(slot);
-        if (parsedSlot['weeklySchedule'] is List) {
-          final weeklySchedule = parsedSlot['weeklySchedule'] as List;
-          final parsedWeeklySchedule = <Map<String, dynamic>>[];
-          for (var day in weeklySchedule) {
-            if (day is Map<String, dynamic>) {
-              final parsedDay = Map<String, dynamic>.from(day);
-              if (parsedDay['timeSlots'] is List) {
-                final timeSlots = parsedDay['timeSlots'] as List;
-                final parsedTimeSlots = <Map<String, dynamic>>[];
-                for (var timeSlot in timeSlots) {
-                  if (timeSlot is Map<String, dynamic>) {
-                    parsedTimeSlots.add(Map<String, dynamic>.from(timeSlot));
-                  }
-                }
-                parsedDay['timeSlots'] = parsedTimeSlots;
-              }
-              parsedWeeklySchedule.add(parsedDay);
-            }
-          }
-          parsedSlot['weeklySchedule'] = parsedWeeklySchedule;
+        try {
+          parsedSlots.add(ServiceSlot.fromJson(slot));
+        } catch (e) {
+          print('Error parsing slot: $e');
         }
-        parsedSlots.add(parsedSlot);
       }
     }
     return parsedSlots;
@@ -705,6 +647,8 @@ class ServiceModel {
     return 0;
   }
 
+  // =================== SERIALIZATION ===================
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -725,7 +669,7 @@ class ServiceModel {
       'reviewCount': reviewCount,
       'serviceType': serviceType,
       'type': type,
-      'slots': slots,
+      'slots': slots.map((slot) => slot.toJson()).toList(),
       'duration': duration,
       'locationType': locationType,
       'serviceArea': serviceArea,
@@ -792,7 +736,7 @@ class ServiceModel {
     int? reviewCount,
     String? serviceType,
     String? type,
-    List<dynamic>? slots,
+    List<ServiceSlot>? slots,
     String? duration,
     String? locationType,
     String? serviceArea,
@@ -918,7 +862,7 @@ class ServiceModel {
 
   @override
   String toString() {
-    return 'ServiceModel{id: $id, name: $name, providerName: $providerName, providerPid: $providerPid}';
+    return 'ServiceModel{id: $id, name: $name, providerName: $providerName}';
   }
 
   @override
@@ -930,4 +874,243 @@ class ServiceModel {
 
   @override
   int get hashCode => id.hashCode;
+}
+
+// =================== SERVICE-ONLY TIME SLOT MODELS ===================
+
+class ServiceSlot {
+  final List<DaySchedule>? schedule; // Changed from weeklySchedule to schedule
+  final List<DateSlot>? specificDates;
+
+  const ServiceSlot({
+    this.schedule, // Changed from weeklySchedule to schedule
+    this.specificDates,
+  });
+
+  factory ServiceSlot.fromJson(Map<String, dynamic> json) {
+    return ServiceSlot(
+      schedule: json['schedule'] != null // Changed from weeklySchedule to schedule
+          ? (json['schedule'] as List)
+              .map((x) => DaySchedule.fromJson(x))
+              .toList()
+          : json['weeklySchedule'] != null // Fallback to old name if exists
+              ? (json['weeklySchedule'] as List)
+                  .map((x) => DaySchedule.fromJson(x))
+                  .toList()
+              : null,
+      specificDates: json['specificDates'] != null
+          ? (json['specificDates'] as List)
+              .map((x) => DateSlot.fromJson(x))
+              .toList()
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      if (schedule != null)
+        'schedule': schedule!.map((x) => x.toJson()).toList(), // Changed from weeklySchedule to schedule
+      if (specificDates != null)
+        'specificDates': specificDates!.map((x) => x.toJson()).toList(),
+    };
+  }
+}
+
+class DaySchedule {
+  final String day;
+  final bool isWorkingDay;
+  final List<TimeSlot>? timeSlots;
+  final String? date;
+  final List<String>? dates;
+  final List<DateRange>? dateRanges;
+
+  const DaySchedule({
+    required this.day,
+    required this.isWorkingDay,
+    this.timeSlots,
+    this.date,
+    this.dates,
+    this.dateRanges,
+  });
+
+  factory DaySchedule.fromJson(Map<String, dynamic> json) {
+    return DaySchedule(
+      day: json['day']?.toString() ?? '',
+      isWorkingDay: json['isWorkingDay'] as bool? ?? false,
+      timeSlots: json['timeSlots'] != null
+          ? (json['timeSlots'] as List)
+              .map((x) => TimeSlot.fromJson(x))
+              .toList()
+          : null,
+      date: json['date']?.toString(),
+      dates: json['dates'] != null
+          ? List<String>.from(json['dates'] as List)
+          : null,
+      dateRanges: json['dateRanges'] != null
+          ? (json['dateRanges'] as List)
+              .map((x) => DateRange.fromJson(x))
+              .toList()
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'day': day,
+      'isWorkingDay': isWorkingDay,
+      if (timeSlots != null)
+        'timeSlots': timeSlots!.map((x) => x.toJson()).toList(),
+      if (date != null) 'date': date,
+      if (dates != null) 'dates': dates,
+      if (dateRanges != null)
+        'dateRanges': dateRanges!.map((x) => x.toJson()).toList(),
+    };
+  }
+}
+
+class TimeSlot {
+  final String startTime;
+  final String endTime;
+  final bool? isAvailable;
+  final bool? isBooked;
+  final String? bookingId;
+  final String? slotIdentifier;
+  final String? status;
+
+  const TimeSlot({
+    required this.startTime,
+    required this.endTime,
+    this.isAvailable = true,
+    this.isBooked = false,
+    this.bookingId,
+    this.slotIdentifier,
+    this.status,
+  });
+
+  factory TimeSlot.fromJson(Map<String, dynamic> json) {
+    return TimeSlot(
+      startTime: json['startTime']?.toString() ?? '',
+      endTime: json['endTime']?.toString() ?? '',
+      isAvailable: json['isAvailable'] as bool? ?? true,
+      isBooked: json['isBooked'] as bool? ?? false,
+      bookingId: json['bookingId']?.toString(),
+      slotIdentifier: json['slotIdentifier']?.toString(),
+      status: json['status']?.toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'startTime': startTime,
+      'endTime': endTime,
+      'isAvailable': isAvailable,
+      'isBooked': isBooked,
+      if (bookingId != null) 'bookingId': bookingId,
+      if (slotIdentifier != null) 'slotIdentifier': slotIdentifier,
+      if (status != null) 'status': status,
+    };
+  }
+
+  TimeSlot copyWith({
+    String? startTime,
+    String? endTime,
+    bool? isAvailable,
+    bool? isBooked,
+    String? bookingId,
+    String? slotIdentifier,
+    String? status,
+  }) {
+    return TimeSlot(
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      isAvailable: isAvailable ?? this.isAvailable,
+      isBooked: isBooked ?? this.isBooked,
+      bookingId: bookingId ?? this.bookingId,
+      slotIdentifier: slotIdentifier ?? this.slotIdentifier,
+      status: status ?? this.status,
+    );
+  }
+}
+
+class DateRange {
+  final String startDate;
+  final String endDate;
+
+  const DateRange({
+    required this.startDate,
+    required this.endDate,
+  });
+
+  factory DateRange.fromJson(Map<String, dynamic> json) {
+    return DateRange(
+      startDate: json['startDate']?.toString() ?? '',
+      endDate: json['endDate']?.toString() ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'startDate': startDate,
+      'endDate': endDate,
+    };
+  }
+}
+
+class DateSlot {
+  final String? date;
+  final List<TimeSlot>? timeSlots;
+
+  const DateSlot({
+    this.date,
+    this.timeSlots,
+  });
+
+  factory DateSlot.fromJson(Map<String, dynamic> json) {
+    return DateSlot(
+      date: json['date']?.toString(),
+      timeSlots: json['timeSlots'] != null
+          ? (json['timeSlots'] as List)
+              .map((x) => TimeSlot.fromJson(x))
+              .toList()
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      if (date != null) 'date': date,
+      if (timeSlots != null)
+        'timeSlots': timeSlots!.map((x) => x.toJson()).toList(),
+    };
+  }
+}
+
+class SelectedSlot {
+  final String? date;
+  final TimeSlot? timeSlot;
+  final String? serviceId;
+
+  const SelectedSlot({
+    this.date,
+    this.timeSlot,
+    this.serviceId,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      if (date != null) 'date': date,
+      if (timeSlot != null) 'timeSlot': timeSlot!.toJson(),
+      if (serviceId != null) 'serviceId': serviceId,
+    };
+  }
+
+  factory SelectedSlot.fromJson(Map<String, dynamic> json) {
+    return SelectedSlot(
+      date: json['date']?.toString(),
+      timeSlot: json['timeSlot'] != null 
+          ? TimeSlot.fromJson(json['timeSlot'] as Map<String, dynamic>)
+          : null,
+      serviceId: json['serviceId']?.toString(),
+    );
+  }
 }

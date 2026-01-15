@@ -1,50 +1,53 @@
-// lib/models/booking_model.dart
 import 'dart:convert';
 import 'package:intl/intl.dart';
 
 class BookingModel {
+  // MongoDB ID
   final String id;
+  
+  // Booking reference (BK-xxx) - This is what backend uses for review lookup
+  final String bookingReference;
+  
+  // Service info
   final String serviceId;
   final String serviceName;
   final String? serviceImage;
-  final String providerId;    // 🔥 Must be PROV-xxx (not MongoDB _id)
+  
+  // Provider info
+  final String providerId; // This should be PROV-xxx format
   final String providerName;
+  
+  // Customer info
   final String customerId;
   final String customerName;
+  
+  // Booking details
   final DateTime bookingDate;
   final String startTime;
   final String endTime;
   final double totalAmount;
+  final String status; // pending, confirmed, completed, cancelled
+  final DateTime createdAt;
+  
+  // Optional fields
   final String? paymentMethod;
   final String? paymentReference;
   final String? transactionId;
-  final String? bookingReference;
   final String? notes;
-  final String status; // pending, confirmed, cancelled, completed, pending_payment
-  final DateTime createdAt;
   final DateTime? updatedAt;
   final String? cancellationReason;
   final DateTime? cancellationDate;
-  final String? cancellationPolicy;
-  final String? refundAmount;
   final bool isPaid;
   final bool isConfirmed;
   final String currency;
-  final double? advancePayment;
-  final double? remainingAmount;
-  final String? invoiceNumber;
-  final String? paymentStatus; // pending, paid, failed, refunded
+  final String? paymentStatus;
   final DateTime? paymentDate;
   final Map<String, dynamic>? serviceDetails;
   final Map<String, dynamic>? providerDetails;
-  final List<dynamic>? bookingItems;
-  final bool isAdminBooking;
-  final String? adminNotes;
-  final bool requiresConfirmation;
-  final String? bookingType; // normal, recurring, emergency
 
   BookingModel({
     required this.id,
+    required this.bookingReference,
     required this.serviceId,
     required this.serviceName,
     this.serviceImage,
@@ -56,202 +59,189 @@ class BookingModel {
     required this.startTime,
     required this.endTime,
     required this.totalAmount,
+    required this.status,
+    required this.createdAt,
     this.paymentMethod,
     this.paymentReference,
     this.transactionId,
-    this.bookingReference,
     this.notes,
-    required this.status,
-    required this.createdAt,
     this.updatedAt,
     this.cancellationReason,
     this.cancellationDate,
-    this.cancellationPolicy,
-    this.refundAmount,
-    required this.isPaid,
-    required this.isConfirmed,
+    this.isPaid = false,
+    this.isConfirmed = false,
     this.currency = 'ETB',
-    this.advancePayment,
-    this.remainingAmount,
-    this.invoiceNumber,
     this.paymentStatus,
     this.paymentDate,
     this.serviceDetails,
     this.providerDetails,
-    this.bookingItems,
-    this.isAdminBooking = false,
-    this.adminNotes,
-    this.requiresConfirmation = false,
-    this.bookingType = 'normal',
   });
 
-  // Formatted date getters
-  String get formattedBookingDate => DateFormat('dd/MM/yyyy').format(bookingDate);
-  String get formattedCreatedAt => DateFormat('dd/MM/yyyy HH:mm').format(createdAt);
-  String get formattedTimeRange => '$startTime - $endTime';
-  
-  // Status getters
-  bool get isPending => status.toLowerCase() == 'pending';
-  bool get isConfirmedStatus => status.toLowerCase() == 'confirmed';
-  bool get isCancelled => status.toLowerCase() == 'cancelled';
-  bool get isCompleted => status.toLowerCase() == 'completed';
-  bool get isPendingPayment => status.toLowerCase() == 'pending_payment';
-  
-  // Color based on status
-  String get statusColor {
-    switch (status.toLowerCase()) {
-      case 'confirmed':
-        return '#10B981';
-      case 'pending':
-      case 'pending_payment':
-        return '#F59E0B';
-      case 'cancelled':
-        return '#EF4444';
-      case 'completed':
-        return '#3B82F6';
-      default:
-        return '#6B7280';
-    }
-  }
-
-  String get statusIcon {
-    switch (status.toLowerCase()) {
-      case 'confirmed':
-      case 'completed':
-        return '✓';
-      case 'pending':
-        return '⏳';
-      case 'pending_payment':
-        return '💰';
-      case 'cancelled':
-        return '✗';
-      default:
-        return '?';
-    }
-  }
-
-  // 🔥 EXTRACT PROVIDER PID FROM providerDetails IF AVAILABLE
-  String get resolvedProviderPid {
-    if (providerDetails != null && providerDetails!['pid'] != null) {
-      return providerDetails!['pid'].toString();
-    }
-    // Fallback: if providerId looks like a PID
-    if (providerId.startsWith('PROV-')) {
-      return providerId;
-    }
-    return providerId;
-  }
-
   factory BookingModel.fromJson(Map<String, dynamic> json) {
-    DateTime parseBookingDate(dynamic dateData) {
-      if (dateData == null) return DateTime.now();
-      if (dateData is String) {
-        if (dateData.contains('/')) {
-          // Handle DD/MM/YYYY from backend (rare, but safe)
-          final parts = dateData.split('/');
-          if (parts.length == 3) {
-            final d = int.tryParse(parts[0]) ?? 1;
-            final m = int.tryParse(parts[1]) ?? 1;
-            final y = int.tryParse(parts[2]) ?? DateTime.now().year;
-            return DateTime(y, m, d);
+    print('🔍 Parsing Booking JSON: ${json.keys.toList()}');
+
+    // Extract booking reference - CRITICAL for reviews
+    String extractBookingReference() {
+      // First priority: bookingReference field
+      final bookingRef = json['bookingReference']?.toString().trim();
+      if (bookingRef != null && bookingRef.isNotEmpty) {
+        print('✅ Found bookingReference: $bookingRef');
+        return bookingRef;
+      }
+      
+      // Second priority: bookingId field (might contain BK-xxx)
+      final bookingId = json['bookingId']?.toString().trim();
+      if (bookingId != null && bookingId.isNotEmpty) {
+        print('✅ Using bookingId as reference: $bookingId');
+        return bookingId;
+      }
+      
+      // Third priority: reference field
+      final reference = json['reference']?.toString().trim();
+      if (reference != null && reference.isNotEmpty) {
+        print('✅ Using reference as booking reference: $reference');
+        return reference;
+      }
+      
+      // Fourth priority: check if it's a BK- format in any field
+      final allValues = json.values.whereType<String>();
+      for (final value in allValues) {
+        if (value.trim().startsWith('BK-') && value.length > 10) {
+          print('✅ Found BK- format in value: $value');
+          return value.trim();
+        }
+      }
+      
+      // Fallback: Generate a reference from MongoDB ID
+      final mongoId = json['_id']?.toString() ?? json['id']?.toString() ?? '';
+      if (mongoId.isNotEmpty) {
+        final ref = 'BK-${DateTime.now().millisecondsSinceEpoch}-${mongoId.substring(0, 6).toUpperCase()}';
+        print('⚠️ Generated fallback booking reference: $ref');
+        return ref;
+      }
+      
+      print('❌ No booking reference found in booking data');
+      return '';
+    }
+
+    // Parse date helper
+    DateTime parseDate(dynamic dateValue) {
+      try {
+        if (dateValue == null) return DateTime.now();
+        if (dateValue is DateTime) return dateValue;
+        if (dateValue is String) {
+          // Try ISO format first
+          final isoDate = DateTime.tryParse(dateValue);
+          if (isoDate != null) return isoDate;
+          
+          // Try dd/MM/yyyy format
+          if (dateValue.contains('/')) {
+            final parts = dateValue.split('/');
+            if (parts.length == 3) {
+              final day = int.tryParse(parts[0]) ?? 1;
+              final month = int.tryParse(parts[1]) ?? 1;
+              final year = int.tryParse(parts[2]) ?? DateTime.now().year;
+              return DateTime(year, month, day);
+            }
           }
         }
-        return DateTime.tryParse(dateData) ?? DateTime.now();
-      } else if (dateData is Map && dateData['\$date'] != null) {
-        return DateTime.tryParse(dateData['\$date'].toString()) ?? DateTime.now();
+        if (dateValue is Map && dateValue['\$date'] != null) {
+          return DateTime.tryParse(dateValue['\$date'].toString()) ?? DateTime.now();
+        }
+        return DateTime.now();
+      } catch (e) {
+        print('❌ Error parsing date: $e');
+        return DateTime.now();
       }
-      return DateTime.now();
     }
 
-    DateTime? parseDate(dynamic dateData) {
-      if (dateData == null) return null;
-      if (dateData is String) return DateTime.tryParse(dateData);
-      if (dateData is Map && dateData['\$date'] != null) {
-        return DateTime.tryParse(dateData['\$date'].toString());
+    // Extract service ID
+    String extractServiceId() {
+      final serviceId = json['serviceId']?.toString() ?? '';
+      if (serviceId.isEmpty && json['service'] is Map) {
+        return json['service']['serviceId']?.toString() ?? 
+               json['service']['id']?.toString() ?? '';
       }
-      return null;
+      return serviceId;
     }
 
-    Map<String, dynamic>? serviceDetails;
-    if (json['service'] is Map) {
-      serviceDetails = Map<String, dynamic>.from(json['service']);
-    } else if (json['serviceDetails'] is Map) {
-      serviceDetails = Map<String, dynamic>.from(json['serviceDetails']);
+    // Extract provider ID (should be PROV-xxx)
+    String extractProviderId() {
+      final providerId = json['providerId']?.toString() ?? '';
+      if (providerId.isEmpty && json['provider'] is Map) {
+        return json['provider']['pid']?.toString() ?? // Prefer PID
+               json['provider']['_id']?.toString() ?? '';
+      }
+      return providerId;
     }
 
-    Map<String, dynamic>? providerDetails;
-    if (json['provider'] is Map) {
-      providerDetails = Map<String, dynamic>.from(json['provider']);
-    } else if (json['providerDetails'] is Map) {
-      providerDetails = Map<String, dynamic>.from(json['providerDetails']);
+    // Extract provider name
+    String extractProviderName() {
+      if (json['provider'] is Map) {
+        return json['provider']['fullname']?.toString() ??
+               json['provider']['name']?.toString() ??
+               'Provider';
+      }
+      return json['providerName']?.toString() ?? 'Provider';
+    }
+
+    // Extract customer name
+    String extractCustomerName() {
+      if (json['customer'] is Map) {
+        return json['customer']['fullname']?.toString() ??
+               json['customer']['name']?.toString() ??
+               'Customer';
+      }
+      return json['customerName']?.toString() ?? 'Customer';
     }
 
     return BookingModel(
       id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
-      serviceId: json['serviceId']?.toString() ?? '',
+      bookingReference: extractBookingReference(), // This is what backend uses for review lookup
+      serviceId: extractServiceId(),
       serviceName: json['serviceName']?.toString() ??
-          serviceDetails?['title']?.toString() ??
-          serviceDetails?['name']?.toString() ??
-          'Service',
+                  json['service']?['title']?.toString() ??
+                  json['service']?['name']?.toString() ??
+                  'Service',
       serviceImage: json['serviceImage']?.toString() ??
-          serviceDetails?['imageUrl']?.toString() ??
-          serviceDetails?['image']?.toString(),
-      providerId: json['providerId']?.toString() ??
-          providerDetails?['pid']?.toString() ??  // ✅ Prefer PID
-          providerDetails?['_id']?.toString() ??
-          '',
-      providerName: json['providerName']?.toString() ??
-          providerDetails?['fullname']?.toString() ??
-          providerDetails?['name']?.toString() ??
-          'Provider',
+                   json['service']?['imageUrl']?.toString() ??
+                   json['service']?['image']?.toString(),
+      providerId: extractProviderId(),
+      providerName: extractProviderName(),
       customerId: json['customerId']?.toString() ??
-          json['customer']?['_id']?.toString() ??
-          json['user']?['_id']?.toString() ??
-          '',
-      customerName: json['customerName']?.toString() ??
-          json['customer']?['fullname']?.toString() ??
-          json['user']?['fullname']?.toString() ??
-          'Customer',
-      bookingDate: parseBookingDate(json['bookingDate'] ?? json['date']),
+                 json['customer']?['_id']?.toString() ??
+                 json['user']?['_id']?.toString() ??
+                 '',
+      customerName: extractCustomerName(),
+      bookingDate: parseDate(json['bookingDate'] ?? json['date']),
       startTime: json['startTime']?.toString() ?? '09:00',
       endTime: json['endTime']?.toString() ?? '10:00',
       totalAmount: (json['totalAmount'] as num?)?.toDouble() ??
-          (json['amount'] as num?)?.toDouble() ??
-          0.0,
+                  (json['amount'] as num?)?.toDouble() ??
+                  0.0,
+      status: (json['status']?.toString() ?? 'pending').toLowerCase(),
+      createdAt: parseDate(json['createdAt']),
       paymentMethod: json['paymentMethod']?.toString(),
       paymentReference: json['paymentReference']?.toString(),
       transactionId: json['transactionId']?.toString(),
-      bookingReference: json['bookingReference']?.toString() ??
-          json['reference']?.toString(),
       notes: json['notes']?.toString(),
-      status: json['status']?.toString().toLowerCase() ?? 'pending',
-      createdAt: parseDate(json['createdAt']) ?? DateTime.now(),
-      updatedAt: parseDate(json['updatedAt']),
+      updatedAt: json['updatedAt'] != null ? parseDate(json['updatedAt']) : null,
       cancellationReason: json['cancellationReason']?.toString(),
-      cancellationDate: parseDate(json['cancellationDate']),
-      cancellationPolicy: json['cancellationPolicy']?.toString(),
-      refundAmount: json['refundAmount']?.toString(),
+      cancellationDate: json['cancellationDate'] != null ? parseDate(json['cancellationDate']) : null,
       isPaid: json['isPaid'] == true || json['paymentStatus'] == 'paid',
-      isConfirmed: json['isConfirmed'] == true,
+      isConfirmed: json['isConfirmed'] == true || (json['status']?.toString().toLowerCase() == 'confirmed'),
       currency: json['currency']?.toString() ?? 'ETB',
-      advancePayment: (json['advancePayment'] as num?)?.toDouble(),
-      remainingAmount: (json['remainingAmount'] as num?)?.toDouble(),
-      invoiceNumber: json['invoiceNumber']?.toString(),
       paymentStatus: json['paymentStatus']?.toString(),
-      paymentDate: parseDate(json['paymentDate']),
-      serviceDetails: serviceDetails,
-      providerDetails: providerDetails,
-      bookingItems: json['bookingItems'] is List ? List.from(json['bookingItems']) : null,
-      isAdminBooking: json['isAdminBooking'] == true,
-      adminNotes: json['adminNotes']?.toString(),
-      requiresConfirmation: json['requiresConfirmation'] == true,
-      bookingType: json['bookingType']?.toString() ?? 'normal',
+      paymentDate: json['paymentDate'] != null ? parseDate(json['paymentDate']) : null,
+      serviceDetails: json['service'] is Map ? Map<String, dynamic>.from(json['service']) : null,
+      providerDetails: json['provider'] is Map ? Map<String, dynamic>.from(json['provider']) : null,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
+      '_id': id,
+      'bookingReference': bookingReference,
       'serviceId': serviceId,
       'serviceName': serviceName,
       'serviceImage': serviceImage,
@@ -259,127 +249,91 @@ class BookingModel {
       'providerName': providerName,
       'customerId': customerId,
       'customerName': customerName,
-      'bookingDate': bookingDate.toIso8601String(),
+      'bookingDate': formattedBookingDate, // dd/MM/yyyy format
       'startTime': startTime,
       'endTime': endTime,
       'totalAmount': totalAmount,
+      'status': status,
+      'createdAt': createdAt.toIso8601String(),
       'paymentMethod': paymentMethod,
       'paymentReference': paymentReference,
       'transactionId': transactionId,
-      'bookingReference': bookingReference,
       'notes': notes,
-      'status': status,
-      'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
       'cancellationReason': cancellationReason,
       'cancellationDate': cancellationDate?.toIso8601String(),
-      'cancellationPolicy': cancellationPolicy,
-      'refundAmount': refundAmount,
       'isPaid': isPaid,
       'isConfirmed': isConfirmed,
       'currency': currency,
-      'advancePayment': advancePayment,
-      'remainingAmount': remainingAmount,
-      'invoiceNumber': invoiceNumber,
       'paymentStatus': paymentStatus,
       'paymentDate': paymentDate?.toIso8601String(),
       'serviceDetails': serviceDetails,
       'providerDetails': providerDetails,
-      'bookingItems': bookingItems,
-      'isAdminBooking': isAdminBooking,
-      'adminNotes': adminNotes,
-      'requiresConfirmation': requiresConfirmation,
-      'bookingType': bookingType,
     };
   }
 
-  BookingModel copyWith({
-    String? id,
-    String? serviceId,
-    String? serviceName,
-    String? serviceImage,
-    String? providerId,
-    String? providerName,
-    String? customerId,
-    String? customerName,
-    DateTime? bookingDate,
-    String? startTime,
-    String? endTime,
-    double? totalAmount,
-    String? paymentMethod,
-    String? paymentReference,
-    String? transactionId,
-    String? bookingReference,
-    String? notes,
-    String? status,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-    String? cancellationReason,
-    DateTime? cancellationDate,
-    String? cancellationPolicy,
-    String? refundAmount,
-    bool? isPaid,
-    bool? isConfirmed,
-    String? currency,
-    double? advancePayment,
-    double? remainingAmount,
-    String? invoiceNumber,
-    String? paymentStatus,
-    DateTime? paymentDate,
-    Map<String, dynamic>? serviceDetails,
-    Map<String, dynamic>? providerDetails,
-    List<dynamic>? bookingItems,
-    bool? isAdminBooking,
-    String? adminNotes,
-    bool? requiresConfirmation,
-    String? bookingType,
-  }) {
-    return BookingModel(
-      id: id ?? this.id,
-      serviceId: serviceId ?? this.serviceId,
-      serviceName: serviceName ?? this.serviceName,
-      serviceImage: serviceImage ?? this.serviceImage,
-      providerId: providerId ?? this.providerId,
-      providerName: providerName ?? this.providerName,
-      customerId: customerId ?? this.customerId,
-      customerName: customerName ?? this.customerName,
-      bookingDate: bookingDate ?? this.bookingDate,
-      startTime: startTime ?? this.startTime,
-      endTime: endTime ?? this.endTime,
-      totalAmount: totalAmount ?? this.totalAmount,
-      paymentMethod: paymentMethod ?? this.paymentMethod,
-      paymentReference: paymentReference ?? this.paymentReference,
-      transactionId: transactionId ?? this.transactionId,
-      bookingReference: bookingReference ?? this.bookingReference,
-      notes: notes ?? this.notes,
-      status: status ?? this.status,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-      cancellationReason: cancellationReason ?? this.cancellationReason,
-      cancellationDate: cancellationDate ?? this.cancellationDate,
-      cancellationPolicy: cancellationPolicy ?? this.cancellationPolicy,
-      refundAmount: refundAmount ?? this.refundAmount,
-      isPaid: isPaid ?? this.isPaid,
-      isConfirmed: isConfirmed ?? this.isConfirmed,
-      currency: currency ?? this.currency,
-      advancePayment: advancePayment ?? this.advancePayment,
-      remainingAmount: remainingAmount ?? this.remainingAmount,
-      invoiceNumber: invoiceNumber ?? this.invoiceNumber,
-      paymentStatus: paymentStatus ?? this.paymentStatus,
-      paymentDate: paymentDate ?? this.paymentDate,
-      serviceDetails: serviceDetails ?? this.serviceDetails,
-      providerDetails: providerDetails ?? this.providerDetails,
-      bookingItems: bookingItems ?? this.bookingItems,
-      isAdminBooking: isAdminBooking ?? this.isAdminBooking,
-      adminNotes: adminNotes ?? this.adminNotes,
-      requiresConfirmation: requiresConfirmation ?? this.requiresConfirmation,
-      bookingType: bookingType ?? this.bookingType,
-    );
+  // =================== DATE FORMATTERS ===================
+  
+  // For API calls: dd/MM/yyyy format
+  String get formattedBookingDate {
+    return DateFormat('dd/MM/yyyy').format(bookingDate);
+  }
+  
+  // For display with time
+  String get displayBookingDateTime {
+    return DateFormat('dd/MM/yyyy HH:mm').format(bookingDate);
+  }
+  
+  // For TimeSlotsUtils: yyyy-MM-dd format
+  String get timeSlotsBookingDate {
+    return DateFormat('yyyy-MM-dd').format(bookingDate);
+  }
+  
+  String get formattedCreatedAt => DateFormat('dd/MM/yyyy HH:mm').format(createdAt);
+  String get formattedTimeRange => '$startTime - $endTime';
+  
+  // =================== STATUS HELPERS ===================
+  
+  bool get isPending => status == 'pending';
+  bool get isConfirmedStatus => status == 'confirmed';
+  bool get isCancelled => status == 'cancelled';
+  bool get isCompleted => status == 'completed';
+  bool get isPendingPayment => status == 'pending_payment';
+  
+  // Check if booking can be reviewed
+  bool get canBeReviewed {
+    return isCompleted && 
+           bookingReference.isNotEmpty && 
+           bookingReference.startsWith('BK-');
+  }
+  
+  // Status display
+  String get statusDisplay {
+    switch (status) {
+      case 'pending': return 'Pending';
+      case 'confirmed': return 'Confirmed';
+      case 'completed': return 'Completed';
+      case 'cancelled': return 'Cancelled';
+      case 'pending_payment': return 'Payment Pending';
+      default: return status;
+    }
+  }
+  
+  // Status color
+  String get statusColor {
+    switch (status) {
+      case 'confirmed': return '#10B981'; // Green
+      case 'pending':
+      case 'pending_payment': return '#F59E0B'; // Orange
+      case 'cancelled': return '#EF4444'; // Red
+      case 'completed': return '#3B82F6'; // Blue
+      default: return '#6B7280'; // Gray
+    }
   }
 
   @override
   String toString() {
-    return 'BookingModel{id: $id, providerId: $providerId, status: $status}';
+    return 'Booking{id: $id, reference: $bookingReference, service: $serviceId, status: $status, date: $formattedBookingDate}';
   }
 
   @override

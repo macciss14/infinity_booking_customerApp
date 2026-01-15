@@ -8,12 +8,21 @@ import 'constants.dart';
 class SecureStorage {
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
   
-  // ✅ ADD userId Key constant INSIDE the class
+  // User-related keys
   static const String _userIdKey = 'user_id';
-  
-  // 🔥 NEW: Add constant for customer ID (this might be different from user ID)
   static const String _customerIdKey = 'customer_id';
+  
+  // OTP-related keys
+  static const String _otpRequestIdKey = 'otp_request_id';
+  static const String _otpPhoneKey = 'otp_phone';
+  static const String _otpExpiryKey = 'otp_expiry';
+  
+  // NEW: Password reset keys
+  static const String _resetRequestIdKey = 'reset_request_id';
+  static const String _resetPhoneKey = 'reset_phone';
+  static const String _resetExpiryKey = 'reset_expiry';
 
+  // ─── TOKEN OPERATIONS ───────────────────────────────────
   Future<void> saveToken(String token) async {
     try {
       if (token.isEmpty) {
@@ -47,18 +56,31 @@ class SecureStorage {
     }
   }
 
+  Future<bool> hasToken() async {
+    try {
+      final token = await getToken();
+      final hasToken = token != null && token.isNotEmpty;
+      print('🔍 Has token check: $hasToken');
+      return hasToken;
+    } catch (e) {
+      print('❌ Error checking token existence: $e');
+      return false;
+    }
+  }
+
+  // ─── USER DATA OPERATIONS ───────────────────────────────
   Future<void> saveUserData(UserModel user) async {
     try {
       final userJson = jsonEncode(user.toJson());
       await _storage.write(key: AppConstants.userDataKey, value: userJson);
       
-      // 🔥 NEW: Also save user ID separately for easy access
+      // Also save user ID separately for easy access
       if (user.id.isNotEmpty) {
         await saveUserId(user.id);
         print('✅ User data saved successfully for: ${user.email}');
         print('✅ User ID saved: ${user.id}');
         
-        // 🔥 ALSO save to shared preferences as backup
+        // Also save to shared preferences as backup
         try {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString(AppConstants.userDataKey, userJson);
@@ -80,7 +102,7 @@ class SecureStorage {
       if (userJson == null || userJson.isEmpty) {
         print('⚠️ No user data found in secure storage');
         
-        // 🔥 NEW: Try to get from shared preferences as fallback
+        // Try to get from shared preferences as fallback
         try {
           final prefs = await SharedPreferences.getInstance();
           final backupUserJson = prefs.getString(AppConstants.userDataKey);
@@ -117,7 +139,7 @@ class SecureStorage {
     try {
       await _storage.delete(key: AppConstants.userDataKey);
       
-      // 🔥 NEW: Also delete from shared preferences
+      // Also delete from shared preferences
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove(AppConstants.userDataKey);
@@ -131,11 +153,247 @@ class SecureStorage {
     }
   }
 
+  Future<bool> hasUserData() async {
+    try {
+      final userJson = await _storage.read(key: AppConstants.userDataKey);
+      return userJson != null && userJson.isNotEmpty;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // ─── USER ID OPERATIONS ─────────────────────────────────
+  Future<void> saveUserId(String userId) async {
+    try {
+      if (userId.isEmpty) {
+        throw Exception('User ID cannot be empty');
+      }
+      await _storage.write(key: _userIdKey, value: userId);
+      print('✅ User ID saved successfully: $userId');
+    } catch (e) {
+      print('❌ Error saving user ID: $e');
+      rethrow;
+    }
+  }
+
+  Future<String?> getUserId() async {
+    try {
+      final userId = await _storage.read(key: _userIdKey);
+      print('👤 User ID retrieved: ${userId != null ? "Exists" : "Null"}');
+      
+      // If not found, try to get from user data
+      if (userId == null || userId.isEmpty) {
+        final user = await getUserData();
+        if (user != null && user.id.isNotEmpty) {
+          print('🔄 Got user ID from user data: ${user.id}');
+          await saveUserId(user.id); // Save for next time
+          return user.id;
+        }
+      }
+      
+      return userId;
+    } catch (e) {
+      print('❌ Error getting user ID: $e');
+      return null;
+    }
+  }
+
+  // ─── CUSTOMER ID OPERATIONS ─────────────────────────────
+  Future<void> saveCustomerId(String customerId) async {
+    try {
+      if (customerId.isEmpty) {
+        throw Exception('Customer ID cannot be empty');
+      }
+      await _storage.write(key: _customerIdKey, value: customerId);
+      print('✅ Customer ID saved successfully: $customerId');
+    } catch (e) {
+      print('❌ Error saving customer ID: $e');
+      rethrow;
+    }
+  }
+
+  Future<String?> getCustomerId() async {
+    try {
+      // First try to get from customer_id key
+      final customerId = await _storage.read(key: _customerIdKey);
+      if (customerId != null && customerId.isNotEmpty) {
+        print('👤 Customer ID retrieved from customer_id key: $customerId');
+        return customerId;
+      }
+      
+      // If not found, try user_id as fallback
+      final userId = await getUserId();
+      if (userId != null && userId.isNotEmpty) {
+        print('🔄 Using user ID as customer ID: $userId');
+        await saveCustomerId(userId); // Save as customer ID for next time
+        return userId;
+      }
+      
+      print('⚠️ No customer ID found');
+      return null;
+    } catch (e) {
+      print('❌ Error getting customer ID: $e');
+      return null;
+    }
+  }
+
+  // ─── OTP OPERATIONS ─────────────────────────────────────
+  Future<void> saveOtpRequestData(String requestId, String phone) async {
+    try {
+      await _storage.write(key: _otpRequestIdKey, value: requestId);
+      await _storage.write(key: _otpPhoneKey, value: phone);
+      await _storage.write(
+        key: _otpExpiryKey, 
+        value: DateTime.now().add(const Duration(minutes: 10)).toIso8601String()
+      );
+      print('✅ OTP data saved: requestId=$requestId, phone=$phone');
+    } catch (e) {
+      print('❌ Error saving OTP data: $e');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, String>?> getOtpRequestData() async {
+    try {
+      final requestId = await _storage.read(key: _otpRequestIdKey);
+      final phone = await _storage.read(key: _otpPhoneKey);
+      final expiry = await _storage.read(key: _otpExpiryKey);
+      
+      if (requestId == null || phone == null || expiry == null) {
+        print('⚠️ No OTP data found');
+        return null;
+      }
+      
+      // Check if OTP has expired
+      try {
+        final expiryTime = DateTime.parse(expiry);
+        if (DateTime.now().isAfter(expiryTime)) {
+          print('⚠️ OTP data has expired');
+          await deleteOtpRequestData();
+          return null;
+        }
+      } catch (e) {
+        print('⚠️ Error parsing expiry date: $e');
+      }
+      
+      return {
+        'requestId': requestId,
+        'phone': phone,
+        'expiry': expiry,
+      };
+    } catch (e) {
+      print('❌ Error getting OTP data: $e');
+      return null;
+    }
+  }
+
+  Future<void> deleteOtpRequestData() async {
+    try {
+      await _storage.delete(key: _otpRequestIdKey);
+      await _storage.delete(key: _otpPhoneKey);
+      await _storage.delete(key: _otpExpiryKey);
+      print('✅ OTP data deleted');
+    } catch (e) {
+      print('❌ Error deleting OTP data: $e');
+    }
+  }
+
+  // ─── PASSWORD RESET OPERATIONS ──────────────────────────
+  Future<void> saveResetPasswordData(String requestId, String phoneNumber) async {
+    try {
+      await _storage.write(key: _resetRequestIdKey, value: requestId);
+      await _storage.write(key: _resetPhoneKey, value: phoneNumber);
+      await _storage.write(
+        key: _resetExpiryKey, 
+        value: DateTime.now().add(const Duration(hours: 1)).toIso8601String()
+      );
+      print('✅ Password reset data saved: requestId=$requestId, phone=$phoneNumber');
+    } catch (e) {
+      print('❌ Error saving password reset data: $e');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, String>?> getResetPasswordData() async {
+    try {
+      final requestId = await _storage.read(key: _resetRequestIdKey);
+      final phone = await _storage.read(key: _resetPhoneKey);
+      final expiry = await _storage.read(key: _resetExpiryKey);
+      
+      if (requestId == null || phone == null || expiry == null) {
+        print('⚠️ No password reset data found');
+        return null;
+      }
+      
+      // Check if reset data has expired (1 hour)
+      try {
+        final expiryTime = DateTime.parse(expiry);
+        if (DateTime.now().isAfter(expiryTime)) {
+          print('⚠️ Password reset data has expired');
+          await deleteResetPasswordData();
+          return null;
+        }
+      } catch (e) {
+        print('⚠️ Error parsing reset expiry date: $e');
+      }
+      
+      return {
+        'requestId': requestId,
+        'phoneNumber': phone,
+        'expiry': expiry,
+      };
+    } catch (e) {
+      print('❌ Error getting password reset data: $e');
+      return null;
+    }
+  }
+
+  Future<void> deleteResetPasswordData() async {
+    try {
+      await _storage.delete(key: _resetRequestIdKey);
+      await _storage.delete(key: _resetPhoneKey);
+      await _storage.delete(key: _resetExpiryKey);
+      print('✅ Password reset data deleted');
+    } catch (e) {
+      print('❌ Error deleting password reset data: $e');
+    }
+  }
+
+  // ─── GENERAL STORAGE OPERATIONS ─────────────────────────
+  Future<String?> read({required String key}) async {
+    try {
+      return await _storage.read(key: key);
+    } catch (e) {
+      print('❌ Error reading key $key: $e');
+      return null;
+    }
+  }
+
+  Future<void> write({required String key, required String value}) async {
+    try {
+      await _storage.write(key: key, value: value);
+      print('✅ Saved to $key: $value');
+    } catch (e) {
+      print('❌ Error writing to $key: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> delete({required String key}) async {
+    try {
+      await _storage.delete(key: key);
+      print('✅ Deleted key: $key');
+    } catch (e) {
+      print('❌ Error deleting key $key: $e');
+    }
+  }
+
+  // ─── UTILITY METHODS ────────────────────────────────────
   Future<void> clearAll() async {
     try {
       await _storage.deleteAll();
       
-      // 🔥 NEW: Also clear shared preferences
+      // Also clear shared preferences
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.clear();
@@ -146,29 +404,6 @@ class SecureStorage {
       print('🗑️ All storage cleared');
     } catch (e) {
       print('❌ Error clearing storage: $e');
-    }
-  }
-
-  Future<bool> hasToken() async {
-    try {
-      final token = await getToken();
-      final hasToken = token != null && token.isNotEmpty;
-      print('🔍 Has token check: $hasToken');
-      return hasToken;
-    } catch (e) {
-      print('❌ Error checking token existence: $e');
-      return false;
-    }
-  }
-
-  // Additional utility methods
-
-  Future<bool> hasUserData() async {
-    try {
-      final userJson = await _storage.read(key: AppConstants.userDataKey);
-      return userJson != null && userJson.isNotEmpty;
-    } catch (e) {
-      return false;
     }
   }
 
@@ -204,82 +439,6 @@ class SecureStorage {
     }
   }
 
-  // ✅ ADD getUserId and saveUserId INSIDE the class
-  Future<String?> getUserId() async {
-    try {
-      final userId = await _storage.read(key: _userIdKey);
-      print('👤 User ID retrieved: ${userId != null ? "Exists" : "Null"}');
-      
-      // 🔥 NEW: If not found, try to get from user data
-      if (userId == null || userId.isEmpty) {
-        final user = await getUserData();
-        if (user != null && user.id.isNotEmpty) {
-          print('🔄 Got user ID from user data: ${user.id}');
-          await saveUserId(user.id); // Save for next time
-          return user.id;
-        }
-      }
-      
-      return userId;
-    } catch (e) {
-      print('❌ Error getting user ID: $e');
-      return null;
-    }
-  }
-
-  Future<void> saveUserId(String userId) async {
-    try {
-      if (userId.isEmpty) {
-        throw Exception('User ID cannot be empty');
-      }
-      await _storage.write(key: _userIdKey, value: userId);
-      print('✅ User ID saved successfully: $userId');
-    } catch (e) {
-      print('❌ Error saving user ID: $e');
-      rethrow;
-    }
-  }
-
-  // 🔥 NEW: Customer ID methods (customer ID might be different from user ID)
-  Future<String?> getCustomerId() async {
-    try {
-      // First try to get from customer_id key
-      final customerId = await _storage.read(key: _customerIdKey);
-      if (customerId != null && customerId.isNotEmpty) {
-        print('👤 Customer ID retrieved from customer_id key: $customerId');
-        return customerId;
-      }
-      
-      // If not found, try user_id as fallback
-      final userId = await getUserId();
-      if (userId != null && userId.isNotEmpty) {
-        print('🔄 Using user ID as customer ID: $userId');
-        await saveCustomerId(userId); // Save as customer ID for next time
-        return userId;
-      }
-      
-      print('⚠️ No customer ID found');
-      return null;
-    } catch (e) {
-      print('❌ Error getting customer ID: $e');
-      return null;
-    }
-  }
-
-  Future<void> saveCustomerId(String customerId) async {
-    try {
-      if (customerId.isEmpty) {
-        throw Exception('Customer ID cannot be empty');
-      }
-      await _storage.write(key: _customerIdKey, value: customerId);
-      print('✅ Customer ID saved successfully: $customerId');
-    } catch (e) {
-      print('❌ Error saving customer ID: $e');
-      rethrow;
-    }
-  }
-
-  // 🔥 NEW: Extract user ID from user data
   Future<String?> extractUserIdFromUserData() async {
     try {
       final user = await getUserData();

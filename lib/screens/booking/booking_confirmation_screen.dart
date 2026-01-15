@@ -88,8 +88,8 @@ class BookingConfirmationScreen extends StatelessWidget {
                     // Booking Reference
                     if (booking.bookingReference != null)
                       Container(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(
                           color: Colors.blue[50],
                           borderRadius: BorderRadius.circular(8),
@@ -97,7 +97,8 @@ class BookingConfirmationScreen extends StatelessWidget {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.receipt, color: Colors.blue, size: 16),
+                            const Icon(Icons.receipt,
+                                color: Colors.blue, size: 16),
                             const SizedBox(width: 8),
                             Text(
                               'Booking ID: ${booking.bookingReference}',
@@ -124,15 +125,13 @@ class BookingConfirmationScreen extends StatelessWidget {
                       label: 'Provider',
                       value: booking.providerName,
                     ),
-                    // 🔥 NEW: Show Provider ID (matches Vue.js)
-                    ...[
+                    // 🔥 NEW: Show Provider ID (matches Vue.js) - FIXED SYNTAX
                     _buildDetailRow(
                       context: context,
                       icon: Icons.person_outline,
                       label: 'Provider ID',
-                      value: booking.providerId!,
+                      value: booking.providerId,
                     ),
-                  ],
                     _buildDetailRow(
                       context: context,
                       icon: Icons.calendar_today,
