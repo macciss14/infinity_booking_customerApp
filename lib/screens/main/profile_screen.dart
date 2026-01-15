@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../../services/auth_service.dart';
 import '../../models/user_model.dart';
 import '../../config/route_helper.dart';
@@ -31,10 +30,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    _userFuture = _loadUserData();
   }
 
-  Future<void> _loadUserData({bool showRefreshIndicator = false}) async {
+  Future<UserModel?> _loadUserData({bool showRefreshIndicator = false}) async {
     if (showRefreshIndicator) {
       setState(() {
         _isRefreshing = true;
@@ -43,18 +42,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final user = await _authService.fetchUserProfile();
-      setState(() {
-        _userFuture = Future.value(user);
-      });
+      return user;
     } catch (e) {
       final cachedUser = await _authService.getCurrentUser();
-      setState(() {
-        _userFuture = Future.value(cachedUser);
-      });
-
+      
       if (cachedUser == null && mounted) {
         _showErrorSnackbar('Failed to load profile: ${e.toString()}');
       }
+      
+      return cachedUser;
     } finally {
       if (showRefreshIndicator && mounted) {
         setState(() {
@@ -62,6 +58,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         });
       }
     }
+  }
+
+  // FIXED: Returns Future<void> instead of void
+  Future<void> _refreshUserData() async {
+    setState(() {
+      _userFuture = _loadUserData(showRefreshIndicator: true);
+    });
+    // Wait for the future to complete
+    await _userFuture;
   }
 
   void _showErrorSnackbar(String message) {
@@ -461,7 +466,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 20),
           ElevatedButton.icon(
-            onPressed: () => _loadUserData(showRefreshIndicator: true),
+            onPressed: _refreshUserData, // Use the fixed function
             icon: const Icon(Icons.refresh_rounded),
             label: const Text('Try Again'),
             style: ElevatedButton.styleFrom(
@@ -551,7 +556,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       backgroundColor: _backgroundColor,
       body: RefreshIndicator(
-        onRefresh: () => _loadUserData(showRefreshIndicator: true),
+        onRefresh: _refreshUserData, // Fixed: Uses the async function
         color: _primaryColor,
         child: CustomScrollView(
           slivers: [
@@ -573,7 +578,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         )
                       : const Icon(Icons.refresh_rounded),
-                  onPressed: () => _loadUserData(showRefreshIndicator: true),
+                  onPressed: _refreshUserData, // Fixed: Uses the async function
                 ),
               ],
             ),

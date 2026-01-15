@@ -1,7 +1,6 @@
-// lib/screens/main/bookings_screen.dart (Updated - No AppBar)
+// lib/screens/main/bookings_screen.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
 import '../../services/booking_service.dart';
 import '../../services/review_service.dart';
 import '../../models/booking_model.dart';
@@ -75,7 +74,7 @@ class _BookingsScreenState extends State<BookingsScreen>
       setState(() {
         _bookings = bookings;
         _updateBookingCounts();
-        _refreshAttempts = 0; // Reset attempts on success
+        _refreshAttempts = 0;
       });
     } catch (error) {
       print('❌ Error loading bookings: $error');
@@ -89,7 +88,6 @@ class _BookingsScreenState extends State<BookingsScreen>
         _errorMessage = error.toString();
       });
 
-      // Only show snackbar on first error
       if (_refreshAttempts == 1) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -137,79 +135,86 @@ class _BookingsScreenState extends State<BookingsScreen>
         _bookings.where((b) => b.status.toLowerCase() == 'cancelled').length;
   }
 
-  List<BookingModel> get _filteredBookings {
-    switch (_selectedFilter) {
-      case 'upcoming':
-        return _bookings
-            .where((b) => b.status.toLowerCase() == 'confirmed')
-            .toList();
-      case 'pending':
-        return _bookings
-            .where((b) =>
-                b.status.toLowerCase() == 'pending' ||
-                b.status.toLowerCase() == 'pending_payment')
-            .toList();
-      case 'completed':
-        return _bookings
-            .where((b) => b.status.toLowerCase() == 'completed')
-            .toList();
-      case 'cancelled':
-        return _bookings
-            .where((b) => b.status.toLowerCase() == 'cancelled')
-            .toList();
-      default:
-        return _bookings;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Tab Bar (no AppBar, just tabs)
-        Container(
-          color: Colors.white,
-          child: TabBar(
-            controller: _tabController,
-            labelColor: AppColors.primary,
-            unselectedLabelColor: Colors.grey,
-            indicatorColor: AppColors.primary,
-            indicatorSize: TabBarIndicatorSize.tab,
-            tabs: [
-              _buildTabItem('All', _bookingCounts['all']!),
-              _buildTabItem('Upcoming', _bookingCounts['upcoming']!),
-              _buildTabItem('Pending', _bookingCounts['pending']!),
-              _buildTabItem('Completed', _bookingCounts['completed']!),
-              _buildTabItem('Cancelled', _bookingCounts['cancelled']!),
-            ],
-          ),
-        ),
-        
-        Expanded(
-          child: TabBarView(
-            controller: _tabController,
-            children: [
-              _buildTabContent('all'),
-              _buildTabContent('upcoming'),
-              _buildTabContent('pending'),
-              _buildTabContent('completed'),
-              _buildTabContent('cancelled'),
-            ],
-          ),
-        ),
-      ],
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 380;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Column(
+          children: [
+            // Tab Bar - Fixed for mobile
+            Container(
+              color: Colors.white,
+              padding: EdgeInsets.symmetric(
+                horizontal: constraints.maxWidth < 400 ? 8 : 16,
+              ),
+              child: TabBar(
+                controller: _tabController,
+                isScrollable: constraints.maxWidth < 600,
+                labelPadding: EdgeInsets.symmetric(
+                  horizontal: constraints.maxWidth < 400 ? 6 : 12,
+                ),
+                labelColor: AppColors.primary,
+                unselectedLabelColor: Colors.grey,
+                indicatorColor: AppColors.primary,
+                indicatorSize: TabBarIndicatorSize.tab,
+                tabs: _buildTabItems(constraints),
+              ),
+            ),
+            
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildTabContent('all', constraints),
+                  _buildTabContent('upcoming', constraints),
+                  _buildTabContent('pending', constraints),
+                  _buildTabContent('completed', constraints),
+                  _buildTabContent('cancelled', constraints),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildTabItem(String label, int count) {
+  List<Widget> _buildTabItems(BoxConstraints constraints) {
+    final isSmallScreen = constraints.maxWidth < 400;
+    final isVerySmallScreen = constraints.maxWidth < 360;
+
+    return [
+      _buildTabItem('All', _bookingCounts['all']!, isSmallScreen, isVerySmallScreen),
+      _buildTabItem('Upcoming', _bookingCounts['upcoming']!, isSmallScreen, isVerySmallScreen),
+      _buildTabItem('Pending', _bookingCounts['pending']!, isSmallScreen, isVerySmallScreen),
+      _buildTabItem('Completed', _bookingCounts['completed']!, isSmallScreen, isVerySmallScreen),
+      _buildTabItem('Cancelled', _bookingCounts['cancelled']!, isSmallScreen, isVerySmallScreen),
+    ];
+  }
+
+  Widget _buildTabItem(String label, int count, bool isSmallScreen, bool isVerySmallScreen) {
     return Tab(
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label),
-          const SizedBox(width: 6),
+          Text(
+            isVerySmallScreen && label.length > 6 ? label.substring(0, 6) : label,
+            style: TextStyle(
+              fontSize: isSmallScreen ? 12 : 14,
+            ),
+          ),
+          const SizedBox(width: 4),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            padding: EdgeInsets.symmetric(
+              horizontal: isSmallScreen ? 4 : 6,
+              vertical: isSmallScreen ? 1 : 2,
+            ),
+            constraints: BoxConstraints(
+              minWidth: isSmallScreen ? 20 : 24,
+            ),
             decoration: BoxDecoration(
               color: AppColors.primary.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
@@ -217,10 +222,11 @@ class _BookingsScreenState extends State<BookingsScreen>
             child: Text(
               count > 99 ? '99+' : '$count',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: isSmallScreen ? 10 : 12,
                 color: AppColors.primary,
                 fontWeight: FontWeight.bold,
               ),
+              textAlign: TextAlign.center,
             ),
           ),
         ],
@@ -228,13 +234,13 @@ class _BookingsScreenState extends State<BookingsScreen>
     );
   }
 
-  Widget _buildTabContent(String filter) {
+  Widget _buildTabContent(String filter, BoxConstraints constraints) {
     if (_loading) {
-      return _buildLoadingState();
+      return _buildLoadingState(constraints);
     }
 
     if (_hasError) {
-      return _buildErrorState();
+      return _buildErrorState(constraints);
     }
 
     List<BookingModel> filteredList;
@@ -267,7 +273,7 @@ class _BookingsScreenState extends State<BookingsScreen>
     }
 
     if (filteredList.isEmpty) {
-      return _buildEmptyState(filter);
+      return _buildEmptyState(filter, constraints);
     }
 
     return RefreshIndicator(
@@ -275,17 +281,19 @@ class _BookingsScreenState extends State<BookingsScreen>
       color: AppColors.primary,
       backgroundColor: Colors.white,
       child: ListView.separated(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(constraints.maxWidth < 400 ? 12 : 16),
         itemCount: filteredList.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 12),
+        separatorBuilder: (context, index) => SizedBox(height: constraints.maxWidth < 400 ? 8 : 12),
         itemBuilder: (context, index) {
-          return _buildBookingCard(filteredList[index]);
+          return _buildBookingCard(filteredList[index], constraints);
         },
       ),
     );
   }
 
-  Widget _buildBookingCard(BookingModel booking) {
+  Widget _buildBookingCard(BookingModel booking, BoxConstraints constraints) {
+    final isSmallScreen = constraints.maxWidth < 400;
+    final isVerySmallScreen = constraints.maxWidth < 360;
     final isUpcoming = booking.status.toLowerCase() == 'confirmed' &&
         booking.bookingDate.isAfter(DateTime.now());
     final isToday = booking.bookingDate.day == DateTime.now().day &&
@@ -295,7 +303,7 @@ class _BookingsScreenState extends State<BookingsScreen>
     return Card(
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(isSmallScreen ? 10 : 12),
         side: BorderSide(
           color: isUpcoming 
               ? Colors.green.withOpacity(0.3) 
@@ -309,19 +317,19 @@ class _BookingsScreenState extends State<BookingsScreen>
       child: InkWell(
         onTap: () => _showBookingDetails(booking),
         onLongPress: () => _showQuickActions(booking),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(isSmallScreen ? 10 : 12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Status Indicator
               Container(
-                width: 8,
-                height: 80,
+                width: isSmallScreen ? 6 : 8,
+                height: isSmallScreen ? 60 : 80,
                 decoration: BoxDecoration(
                   color: _getStatusColor(booking.status),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(isSmallScreen ? 3 : 4),
                   boxShadow: [
                     BoxShadow(
                       color: _getStatusColor(booking.status).withOpacity(0.3),
@@ -331,14 +339,14 @@ class _BookingsScreenState extends State<BookingsScreen>
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: isSmallScreen ? 8 : 12),
 
               // Service Image
               Container(
-                width: 70,
-                height: 70,
+                width: isSmallScreen ? 50 : 70,
+                height: isSmallScreen ? 50 : 70,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(isSmallScreen ? 6 : 8),
                   color: Colors.grey[200],
                   image: booking.serviceImage != null &&
                           booking.serviceImage!.isNotEmpty
@@ -359,12 +367,12 @@ class _BookingsScreenState extends State<BookingsScreen>
                         booking.serviceImage!.isEmpty
                     ? Icon(
                         Icons.build,
-                        size: 30,
+                        size: isSmallScreen ? 20 : 30,
                         color: Colors.grey[500],
                       )
                     : null,
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: isSmallScreen ? 8 : 12),
 
               // Booking Details
               Expanded(
@@ -374,84 +382,112 @@ class _BookingsScreenState extends State<BookingsScreen>
                     // Service Name & Status
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
                           child: Text(
                             booking.serviceName,
-                            style: const TextStyle(
-                              fontSize: 16,
+                            style: TextStyle(
+                              fontSize: isSmallScreen ? 14 : 16,
                               fontWeight: FontWeight.bold,
+                              height: 1.2,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isSmallScreen ? 6 : 8,
+                            vertical: isSmallScreen ? 2 : 4,
+                          ),
+                          constraints: BoxConstraints(
+                            maxWidth: isSmallScreen ? 70 : 100,
+                          ),
                           decoration: BoxDecoration(
                             color: _getStatusColor(booking.status)
                                 .withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 12),
                           ),
                           child: Text(
                             _getStatusDisplay(booking.status),
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: isSmallScreen ? 9 : 10,
                               fontWeight: FontWeight.bold,
                               color: _getStatusColor(booking.status),
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: isSmallScreen ? 2 : 4),
 
                     // Provider Name
                     Text(
                       booking.providerName,
-                      style: const TextStyle(
-                        fontSize: 14,
+                      style: TextStyle(
+                        fontSize: isSmallScreen ? 12 : 14,
                         color: Colors.grey,
+                        height: 1.2,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: isSmallScreen ? 6 : 8),
 
                     // Date & Time
-                    Row(
+                    Wrap(
+                      spacing: isSmallScreen ? 8 : 12,
+                      runSpacing: isSmallScreen ? 4 : 6,
                       children: [
-                        Icon(
-                          Icons.calendar_today,
-                          size: 14,
-                          color: isToday ? AppColors.primary : Colors.grey,
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.calendar_today,
+                              size: isSmallScreen ? 12 : 14,
+                              color: isToday ? AppColors.primary : Colors.grey,
+                            ),
+                            SizedBox(width: isSmallScreen ? 2 : 4),
+                            Text(
+                              isToday ? 'Today' : booking.formattedBookingDate,
+                              style: TextStyle(
+                                fontSize: isSmallScreen ? 11 : 13,
+                                fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                                color: isToday ? AppColors.primary : Colors.grey[700],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          isToday ? 'Today' : booking.formattedBookingDate,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                            color: isToday ? AppColors.primary : Colors.grey[700],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Icon(
-                          Icons.access_time,
-                          size: 14,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          booking.formattedTimeRange,
-                          style: const TextStyle(
-                            fontSize: 13,
-                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.access_time,
+                              size: isSmallScreen ? 12 : 14,
+                              color: Colors.grey,
+                            ),
+                            SizedBox(width: isSmallScreen ? 2 : 4),
+                            Flexible(
+                              child: Text(
+                                booking.formattedTimeRange,
+                                style: TextStyle(
+                                  fontSize: isSmallScreen ? 11 : 13,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: isSmallScreen ? 6 : 8),
 
                     // Price & Actions
                     Row(
@@ -459,13 +495,18 @@ class _BookingsScreenState extends State<BookingsScreen>
                       children: [
                         // Price
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isSmallScreen ? 8 : 12,
+                            vertical: isSmallScreen ? 4 : 6,
+                          ),
+                          constraints: BoxConstraints(
+                            maxWidth: isSmallScreen ? 120 : 160,
+                          ),
                           decoration: BoxDecoration(
                             color: booking.isPaid
                                 ? Colors.green.withOpacity(0.1)
                                 : AppColors.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(isSmallScreen ? 6 : 8),
                             border: Border.all(
                               color: booking.isPaid
                                   ? Colors.green.withOpacity(0.3)
@@ -474,24 +515,30 @@ class _BookingsScreenState extends State<BookingsScreen>
                             ),
                           ),
                           child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
                                 booking.isPaid
                                     ? Icons.check_circle
                                     : Icons.pending,
-                                size: 14,
+                                size: isSmallScreen ? 12 : 14,
                                 color: booking.isPaid
                                     ? Colors.green
                                     : AppColors.primary,
                               ),
-                              const SizedBox(width: 6),
-                              Text(
-                                '${booking.totalAmount.toStringAsFixed(2)} ${booking.currency}',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: booking.isPaid
-                                      ? Colors.green
-                                      : AppColors.primary,
+                              SizedBox(width: isSmallScreen ? 4 : 6),
+                              Flexible(
+                                child: Text(
+                                  '${booking.totalAmount.toStringAsFixed(2)} ${booking.currency}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: booking.isPaid
+                                        ? Colors.green
+                                        : AppColors.primary,
+                                    fontSize: isSmallScreen ? 12 : 14,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ],
@@ -504,12 +551,16 @@ class _BookingsScreenState extends State<BookingsScreen>
                             onPressed: () => _handleQuickAction(booking),
                             icon: Icon(
                               _getQuickActionIcon(booking),
-                              size: 20,
+                              size: isSmallScreen ? 18 : 20,
                               color: _getQuickActionColor(booking),
                             ),
-                            padding: const EdgeInsets.all(4),
+                            padding: EdgeInsets.all(isSmallScreen ? 2 : 4),
                             visualDensity: VisualDensity.compact,
                             tooltip: _getQuickActionTooltip(booking),
+                            constraints: BoxConstraints(
+                              minWidth: isSmallScreen ? 36 : 40,
+                              minHeight: isSmallScreen ? 36 : 40,
+                            ),
                           ),
                       ],
                     ),
@@ -523,75 +574,82 @@ class _BookingsScreenState extends State<BookingsScreen>
     );
   }
 
-  Widget _buildLoadingState() {
+  Widget _buildLoadingState(BoxConstraints constraints) {
+    final isSmallScreen = constraints.maxWidth < 400;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           SizedBox(
-            width: 60,
-            height: 60,
+            width: isSmallScreen ? 50 : 60,
+            height: isSmallScreen ? 50 : 60,
             child: CircularProgressIndicator(
               strokeWidth: 4,
               valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
             ),
           ),
-          const SizedBox(height: 20),
-          const Text(
+          SizedBox(height: isSmallScreen ? 16 : 20),
+          Text(
             'Loading your bookings...',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: isSmallScreen ? 14 : 16,
               color: Colors.grey,
               fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: isSmallScreen ? 8 : 10),
           Text(
             'Please wait a moment',
-            style: TextStyle(color: Colors.grey[600]),
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: isSmallScreen ? 12 : 14,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildErrorState() {
+  Widget _buildErrorState(BoxConstraints constraints) {
+    final isSmallScreen = constraints.maxWidth < 400;
+
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: EdgeInsets.all(isSmallScreen ? 20 : 32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.error_outline,
-              size: 80,
+              size: isSmallScreen ? 60 : 80,
               color: Colors.red,
             ),
-            const SizedBox(height: 20),
-            const Text(
+            SizedBox(height: isSmallScreen ? 16 : 20),
+            Text(
               'Unable to Load Bookings',
+              textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 22,
+                fontSize: isSmallScreen ? 18 : 22,
                 fontWeight: FontWeight.bold,
               ),
-              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: isSmallScreen ? 8 : 12),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
+              padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 20 : 32),
               child: Text(
                 _errorMessage ?? 'Please check your internet connection and try again.',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 15,
+                style: TextStyle(
+                  fontSize: isSmallScreen ? 13 : 15,
                   color: Colors.grey,
                   height: 1.5,
                 ),
               ),
             ),
-            const SizedBox(height: 30),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            SizedBox(height: isSmallScreen ? 24 : 30),
+            Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 ElevatedButton.icon(
                   onPressed: _loadBookings,
@@ -600,12 +658,14 @@ class _BookingsScreenState extends State<BookingsScreen>
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 12),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isSmallScreen ? 20 : 24,
+                      vertical: isSmallScreen ? 10 : 12,
+                    ),
                   ),
                 ),
                 if (_refreshAttempts >= _maxRefreshAttempts) ...[
-                  const SizedBox(width: 16),
+                  SizedBox(height: isSmallScreen ? 12 : 16),
                   OutlinedButton.icon(
                     onPressed: () => RouteHelper.goToHome(context),
                     icon: const Icon(Icons.home),
@@ -614,7 +674,7 @@ class _BookingsScreenState extends State<BookingsScreen>
                 ],
               ],
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: isSmallScreen ? 12 : 16),
             TextButton(
               onPressed: () => _contactSupport(),
               child: const Text('Contact Support'),
@@ -625,58 +685,62 @@ class _BookingsScreenState extends State<BookingsScreen>
     );
   }
 
-  Widget _buildEmptyState(String filter) {
+  Widget _buildEmptyState(String filter, BoxConstraints constraints) {
+    final isSmallScreen = constraints.maxWidth < 400;
+
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: EdgeInsets.all(isSmallScreen ? 20 : 32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               _getEmptyStateIcon(filter),
-              size: 80,
+              size: isSmallScreen ? 60 : 80,
               color: Colors.grey[400],
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: isSmallScreen ? 16 : 20),
             Text(
               _getEmptyStateMessage(filter),
-              style: const TextStyle(
-                fontSize: 22,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: isSmallScreen ? 18 : 22,
                 fontWeight: FontWeight.bold,
                 color: Colors.grey,
               ),
-              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: isSmallScreen ? 8 : 12),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
+              padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 24 : 40),
               child: Text(
                 _getEmptyStateSubtitle(filter),
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 15,
+                style: TextStyle(
+                  fontSize: isSmallScreen ? 13 : 15,
                   color: Colors.grey,
                   height: 1.5,
                 ),
               ),
             ),
-            const SizedBox(height: 30),
+            SizedBox(height: isSmallScreen ? 24 : 30),
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 ElevatedButton(
                   onPressed: () {
-                    // Navigate to services
                     RouteHelper.pushNamed(context, RouteHelper.serviceList);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isSmallScreen ? 32 : 40,
+                      vertical: isSmallScreen ? 12 : 14,
+                    ),
                   ),
                   child: const Text('Browse Services'),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: isSmallScreen ? 12 : 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -684,7 +748,7 @@ class _BookingsScreenState extends State<BookingsScreen>
                       onPressed: _loadBookings,
                       child: const Text('Refresh'),
                     ),
-                    const SizedBox(width: 16),
+                    SizedBox(width: isSmallScreen ? 12 : 16),
                     if (filter != 'all')
                       OutlinedButton(
                         onPressed: () {
@@ -702,7 +766,6 @@ class _BookingsScreenState extends State<BookingsScreen>
     );
   }
 
-  // Helper methods for quick actions
   bool _hasQuickAction(BookingModel booking) {
     final status = booking.status.toLowerCase();
     return status == 'pending_payment' ||
@@ -770,6 +833,9 @@ class _BookingsScreenState extends State<BookingsScreen>
   }
 
   Future<void> _showBookingDetails(BookingModel booking) async {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 400;
+
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -782,6 +848,7 @@ class _BookingsScreenState extends State<BookingsScreen>
           booking: booking,
           onRefresh: _loadBookings,
           onAddReview: () => _addReview(booking),
+          isSmallScreen: isSmallScreen,
         );
       },
     );
@@ -841,21 +908,18 @@ class _BookingsScreenState extends State<BookingsScreen>
   }
 
   void _copyBookingId(BookingModel booking) {
-    // Implement copy to clipboard
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Booking ID copied')),
     );
   }
 
   void _shareBooking(BookingModel booking) {
-    // Implement share functionality
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Share functionality coming soon')),
     );
   }
 
   void _printBooking(BookingModel booking) {
-    // Implement print functionality
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Print functionality coming soon')),
     );
@@ -986,24 +1050,25 @@ class _BookingsScreenState extends State<BookingsScreen>
   }
 }
 
-// Separate widget for booking details
 class BookingDetailsBottomSheet extends StatelessWidget {
   final BookingModel booking;
   final VoidCallback onRefresh;
   final VoidCallback onAddReview;
+  final bool isSmallScreen;
 
   const BookingDetailsBottomSheet({
     super.key,
     required this.booking,
     required this.onRefresh,
     required this.onAddReview,
+    required this.isSmallScreen,
   });
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -1019,19 +1084,26 @@ class BookingDetailsBottomSheet extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: isSmallScreen ? 16 : 20),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Booking Details',
-                  style: Theme.of(context).textTheme.titleLarge!.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                Flexible(
+                  child: Text(
+                    'Booking Details',
+                    style: TextStyle(
+                      fontSize: isSmallScreen ? 18 : 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isSmallScreen ? 8 : 12,
+                    vertical: isSmallScreen ? 4 : 6,
+                  ),
                   decoration: BoxDecoration(
                     color: _getStatusColor(booking.status).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
@@ -1041,12 +1113,13 @@ class BookingDetailsBottomSheet extends StatelessWidget {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: _getStatusColor(booking.status),
+                      fontSize: isSmallScreen ? 12 : 14,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: isSmallScreen ? 16 : 20),
 
             // Service Info
             _buildDetailSection(
@@ -1055,8 +1128,9 @@ class BookingDetailsBottomSheet extends StatelessWidget {
               content: booking.serviceName,
               subtitle: booking.providerName,
               imageUrl: booking.serviceImage,
+              isSmallScreen: isSmallScreen,
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: isSmallScreen ? 20 : 24),
 
             // Date & Time
             _buildDetailSection(
@@ -1064,8 +1138,9 @@ class BookingDetailsBottomSheet extends StatelessWidget {
               title: 'Date & Time',
               content:
                   '${booking.formattedBookingDate} • ${booking.formattedTimeRange}',
+              isSmallScreen: isSmallScreen,
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: isSmallScreen ? 20 : 24),
 
             // Payment Info
             _buildDetailSection(
@@ -1078,49 +1153,54 @@ class BookingDetailsBottomSheet extends StatelessWidget {
                   : booking.paymentMethod != null
                       ? 'Payment via ${booking.paymentMethod}'
                       : 'Payment pending',
+              isSmallScreen: isSmallScreen,
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: isSmallScreen ? 20 : 24),
 
             // Booking ID
             _buildDetailSection(
               icon: Icons.info,
               title: 'Booking Reference',
               content: booking.bookingReference ?? booking.id,
+              isSmallScreen: isSmallScreen,
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: isSmallScreen ? 20 : 24),
 
             // Notes
             if (booking.notes != null && booking.notes!.isNotEmpty)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Notes',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                      fontSize: isSmallScreen ? 16 : 18,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: isSmallScreen ? 8 : 12),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(12),
+                    padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
                     decoration: BoxDecoration(
                       color: Colors.grey[50],
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       booking.notes!,
-                      style: const TextStyle(color: Colors.grey),
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: isSmallScreen ? 14 : 16,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: isSmallScreen ? 20 : 24),
                 ],
               ),
 
             // Actions
             _buildActionButtons(context),
-            const SizedBox(height: 20),
+            SizedBox(height: isSmallScreen ? 16 : 20),
           ],
         ),
       ),
@@ -1133,6 +1213,7 @@ class BookingDetailsBottomSheet extends StatelessWidget {
     required String content,
     String? subtitle,
     String? imageUrl,
+    required bool isSmallScreen,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1142,23 +1223,23 @@ class BookingDetailsBottomSheet extends StatelessWidget {
             Icon(
               icon,
               color: AppColors.primary,
-              size: 20,
+              size: isSmallScreen ? 18 : 20,
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: isSmallScreen ? 6 : 8),
             Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: 16,
+                fontSize: isSmallScreen ? 16 : 18,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: isSmallScreen ? 10 : 12),
         if (imageUrl != null && imageUrl.isNotEmpty)
           Container(
             width: double.infinity,
-            height: 150,
+            height: isSmallScreen ? 120 : 150,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
               image: DecorationImage(
@@ -1170,19 +1251,19 @@ class BookingDetailsBottomSheet extends StatelessWidget {
           ),
         Text(
           content,
-          style: const TextStyle(
-            fontSize: 16,
+          style: TextStyle(
+            fontSize: isSmallScreen ? 15 : 16,
             fontWeight: FontWeight.w500,
           ),
         ),
         if (subtitle != null && subtitle.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.only(top: 4),
+            padding: EdgeInsets.only(top: isSmallScreen ? 2 : 4),
             child: Text(
               subtitle,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Colors.grey,
-                fontSize: 14,
+                fontSize: isSmallScreen ? 13 : 14,
               ),
             ),
           ),
@@ -1199,20 +1280,19 @@ class BookingDetailsBottomSheet extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              // TODO: Navigate to payment
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
-              minimumSize: const Size(double.infinity, 50),
+              minimumSize: Size(double.infinity, isSmallScreen ? 48 : 50),
             ),
             child: const Text('Make Payment'),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: isSmallScreen ? 10 : 12),
           OutlinedButton(
             onPressed: () => Navigator.pop(context),
             style: OutlinedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 50),
+              minimumSize: Size(double.infinity, isSmallScreen ? 48 : 50),
             ),
             child: const Text('Close'),
           ),
@@ -1226,23 +1306,21 @@ class BookingDetailsBottomSheet extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              // TODO: Navigate to reschedule
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
-              minimumSize: const Size(double.infinity, 50),
+              minimumSize: Size(double.infinity, isSmallScreen ? 48 : 50),
             ),
             child: const Text('Reschedule'),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: isSmallScreen ? 10 : 12),
           OutlinedButton(
             onPressed: () async {
               Navigator.pop(context);
-              // TODO: Cancel booking
             },
             style: OutlinedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 50),
+              minimumSize: Size(double.infinity, isSmallScreen ? 48 : 50),
               foregroundColor: Colors.red,
             ),
             child: const Text('Cancel Booking'),
@@ -1262,22 +1340,22 @@ class BookingDetailsBottomSheet extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,
               foregroundColor: Colors.white,
-              minimumSize: const Size(double.infinity, 50),
+              minimumSize: Size(double.infinity, isSmallScreen ? 48 : 50),
             ),
-            child: const Row(
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.star, size: 20),
-                SizedBox(width: 8),
-                Text('Write a Review'),
+                Icon(Icons.star, size: isSmallScreen ? 18 : 20),
+                SizedBox(width: isSmallScreen ? 6 : 8),
+                const Text('Write a Review'),
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: isSmallScreen ? 10 : 12),
           OutlinedButton(
             onPressed: () => Navigator.pop(context),
             style: OutlinedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 50),
+              minimumSize: Size(double.infinity, isSmallScreen ? 48 : 50),
             ),
             child: const Text('Close'),
           ),
@@ -1288,7 +1366,7 @@ class BookingDetailsBottomSheet extends StatelessWidget {
     return OutlinedButton(
       onPressed: () => Navigator.pop(context),
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size(double.infinity, 50),
+        minimumSize: Size(double.infinity, isSmallScreen ? 48 : 50),
       ),
       child: const Text('Close'),
     );
