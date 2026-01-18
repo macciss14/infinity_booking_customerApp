@@ -1,13 +1,16 @@
-// lib/screens/main/main_screen.dart (FINAL VERSION)
+// lib/screens/main/main_screen.dart (UPDATED VERSION)
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import '../service/service_list_screen.dart';
 import 'bookings_screen.dart';
 import 'profile_screen.dart';
 import '../notifications/notifications_screen.dart';
+import '../settings/settings_screen.dart'; // ADD THIS IMPORT
 import '../../config/route_helper.dart';
 import 'package:provider/provider.dart';
 import '../../providers/notification_provider.dart';
+import '../../providers/theme_provider.dart'; // ADD THIS IMPORT
+import '../../providers/language_provider.dart'; // ADD THIS IMPORT
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -22,13 +25,26 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   late Animation<double> _opacityAnimation;
   late Animation<double> _scaleAnimation;
 
-  // Forest Green Color Scheme
-  final Color _primaryGreen = const Color(0xFF2E7D32);
-  final Color _darkGreen = const Color(0xFF1B5E20);
-  final Color _lightGreen = const Color(0xFF4CAF50);
-  final Color _accentGreen = const Color(0xFF81C784);
-  final Color _background = const Color(0xFFF8FDF8);
-  final Color _textLight = const Color(0xFF666666);
+  // Get colors from theme provider instead of hardcoded values
+  Color get _primaryGreen => context.watch<ThemeProvider>().primaryColor;
+  Color get _darkGreen => Color.alphaBlend(Colors.black.withOpacity(0.3), _primaryGreen);
+  Color get _lightGreen => Color.alphaBlend(Colors.white.withOpacity(0.3), _primaryGreen);
+  Color get _accentGreen => Color.alphaBlend(Colors.white.withOpacity(0.5), _primaryGreen);
+  
+  // Background based on theme
+  Color get _background {
+    final themeProvider = context.watch<ThemeProvider>();
+    return themeProvider.isDarkMode 
+        ? const Color(0xFF121212)
+        : const Color(0xFFF8FDF8);
+  }
+  
+  Color get _textLight {
+    final themeProvider = context.watch<ThemeProvider>();
+    return themeProvider.isDarkMode 
+        ? const Color(0xFFB0B0B0)
+        : const Color(0xFF666666);
+  }
 
   // Navigation items
   final List<Map<String, dynamic>> _navItems = const [
@@ -102,16 +118,20 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   // ==================== APP BAR ====================
 
   Widget _buildAppBar() {
+    final themeProvider = context.watch<ThemeProvider>();
+    
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: themeProvider.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        boxShadow: themeProvider.isDarkMode 
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
       child: Padding(
         padding: const EdgeInsets.only(
@@ -158,7 +178,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w900,
-                          color: _darkGreen,
+                          color: themeProvider.isDarkMode ? Colors.white : _darkGreen,
                           letterSpacing: 1.5,
                         ),
                       ),
@@ -204,9 +224,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                                   width: 1.5,
                                 ),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.notifications_outlined,
-                                color: Color(0xFF2E7D32),
+                                color: _primaryGreen,
                                 size: 22,
                               ),
                             ),
@@ -225,7 +245,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                                 color: Colors.red,
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: Colors.white,
+                                  color: themeProvider.isDarkMode 
+                                      ? const Color(0xFF1E1E1E) 
+                                      : Colors.white,
                                   width: 2,
                                 ),
                               ),
@@ -249,11 +271,18 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                       ],
                     ),
                     const SizedBox(width: 12),
-                    // Settings button
+                    // Settings button - UPDATED TO NAVIGATE TO SETTINGS SCREEN
                     MouseRegion(
                       cursor: SystemMouseCursors.click,
                       child: GestureDetector(
-                        onTap: _showSettings,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const SettingsScreen(),
+                            ),
+                          );
+                        },
                         child: Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
@@ -263,9 +292,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                               width: 1.5,
                             ),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.settings_outlined,
-                            color: Color(0xFF2E7D32),
+                            color: _primaryGreen,
                             size: 22,
                           ),
                         ),
@@ -285,6 +314,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = context.watch<ThemeProvider>();
     final bool isMobile = MediaQuery.of(context).size.width < 768;
 
     return AnimatedBuilder(
@@ -342,6 +372,25 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildGradientBackground() {
+    final themeProvider = context.watch<ThemeProvider>();
+    
+    if (themeProvider.isDarkMode) {
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFF121212),
+              const Color(0xFF1E1E1E),
+              const Color(0xFF2D2D2D),
+            ],
+            stops: const [0.0, 0.5, 1.0],
+          ),
+        ),
+      );
+    }
+    
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -361,6 +410,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   // ==================== DESKTOP NAVIGATION RAIL ====================
 
   Widget _buildDesktopNavigationRail() {
+    final themeProvider = context.watch<ThemeProvider>();
+    
     return Positioned(
       left: 20,
       top: MediaQuery.of(context).size.height * 0.4,
@@ -375,15 +426,17 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: themeProvider.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
             borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-              ),
-            ],
+            boxShadow: themeProvider.isDarkMode 
+                ? []
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -402,7 +455,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: index == _currentIndex
-                          ? _primaryGreen.withOpacity(0.1)
+                          ? _primaryGreen.withOpacity(0.2)
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -426,16 +479,20 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   // ==================== MOBILE NAVIGATION ====================
 
   Widget _buildMobileNavigation() {
+    final themeProvider = context.watch<ThemeProvider>();
+    
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
-          ),
-        ],
+        color: themeProvider.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        boxShadow: themeProvider.isDarkMode 
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, -5),
+                ),
+              ],
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(24),
           topRight: Radius.circular(24),
@@ -531,9 +588,12 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   // ==================== HELPER METHODS ====================
 
   void _showAdvancedFilters() {
+    final themeProvider = context.watch<ThemeProvider>();
+    
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: themeProvider.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -651,79 +711,6 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     );
   }
 
-  void _showSettings() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Settings',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: _primaryGreen,
-                ),
-              ),
-              const SizedBox(height: 20),
-              _buildSettingsOption('Notifications', Icons.notifications),
-              _buildSettingsOption('Dark Mode', Icons.dark_mode),
-              _buildSettingsOption('Language', Icons.language),
-              _buildSettingsOption('Help & Support', Icons.help),
-              _buildSettingsOption('Terms & Privacy', Icons.security),
-              const SizedBox(height: 20),
-              OutlinedButton(
-                onPressed: () => Navigator.pop(context),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 48),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  side: BorderSide(color: _primaryGreen),
-                ),
-                child: Text(
-                  'Close',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: _primaryGreen,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSettingsOption(String title, IconData icon) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-      leading: Icon(icon, color: _primaryGreen, size: 20),
-      title: Text(title, style: const TextStyle(fontSize: 14)),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
-      onTap: () {
-        Navigator.pop(context);
-        if (title == 'Terms & Privacy') {
-          RouteHelper.pushNamed(context, '/terms-and-privacy');
-        }
-      },
-    );
-  }
+  // ==================== REMOVED OLD _showSettings METHOD ====================
+  // This is now handled by navigating to SettingsScreen
 }
